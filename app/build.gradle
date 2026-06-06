@@ -1,6 +1,7 @@
 apply plugin: 'com.android.application'
 
 android {
+    namespace "com.burdenenterprises.stockdesk"
     compileSdkVersion 34
     defaultConfig {
         applicationId "com.burdenenterprises.stockdesk"

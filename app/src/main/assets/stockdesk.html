@@ -679,7 +679,7 @@ async function doAdjust(asset, action, amount, notes) {
       type: 'log--' + logBundle,
       attributes: {
         name: 'Stock ' + action + ': ' + asset.name,
-        timestamp: new Date().toISOString(),
+        timestamp: String(Math.floor(Date.now() / 1000)),
         status: 'done',
         ...(notes ? { notes: { value: notes, format: 'default' } } : {})
       },

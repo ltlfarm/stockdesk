@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1a1a1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Stock Desk">
+<title>Stock Desk</title>
+<style>
+* { box-sizing: border-box; }
+body { margin:0; font-family:sans-serif; background:#1a1a1a; color:#eee; font-size:18px; }
+
+header {
+  background:#111;
+  padding:12px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-bottom:2px solid #3a7;
+  position:sticky;
+  top:0;
+  z-index:100;
+}
+header span { font-size:22px; font-weight:bold; color:#3a7; }
+
+.screen { display:none; padding:10px; padding-bottom:80px; }
+.screen.active { display:block; }
+
+.box { background:#2a2a2a; padding:14px; margin-bottom:10px; border-radius:8px; }
+
+button {
+  display:inline-block;
+  padding:20px 22px;
+  margin:5px;
+  font-size:18px;
+  background:#3a7;
+  border:none;
+  border-radius:8px;
+  color:white;
+  cursor:pointer;
+  touch-action:manipulation;
+}
+button:active { opacity:0.8; }
+button.secondary { background:#555; }
+button.danger    { background:#8b0000; }
+button.wide      { width:calc(100% - 10px); display:block; }
+button.sm        { padding:10px 16px; font-size:15px; margin:3px; }
+
+label { display:block; margin-top:12px; color:#aaa; font-size:15px; }
+input, select, textarea {
+  width:100%; padding:12px; margin-top:4px; font-size:18px;
+  background:#333; color:#eee; border:1px solid #555; border-radius:6px;
+}
+input:focus, select:focus { outline:none; border-color:#3a7; }
+
+.good { background:#1b4d1e !important; border-left:4px solid #3a7; }
+.warn { background:#4d3b00 !important; border-left:4px solid #c90; }
+.bad  { background:#4d0000 !important; border-left:4px solid #c00; }
+
+/* Stock cards */
+.stock-card {
+  background:#2a2a2a;
+  border-radius:8px;
+  padding:12px 14px;
+  margin-bottom:8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  border-left:4px solid #3a7;
+}
+.stock-card.low  { border-left-color:#c90; }
+.stock-card.empty { border-left-color:#c00; }
+
+.stock-card .item-info { flex:1; cursor:pointer; }
+.stock-card .item-name { font-weight:bold; font-size:16px; color:#eee; }
+.stock-card .item-qty  { font-size:14px; color:#3a7; margin-top:2px; }
+.stock-card.low  .item-qty { color:#c90; }
+.stock-card.empty .item-qty { color:#c00; }
+
+.stock-card .adj-btn {
+  padding:12px 18px;
+  font-size:22px;
+  margin:0 2px;
+  min-width:48px;
+  min-height:48px;
+}
+
+/* Category tabs */
+.cat-tabs { display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+.cat-tab {
+  padding:10px 16px; font-size:15px; margin:0;
+  background:#333; border-radius:20px;
+}
+.cat-tab.active { background:#3a7; }
+
+/* Bottom nav */
+.bottom-nav {
+  position:fixed;
+  bottom:0; left:0; right:0;
+  background:#111;
+  border-top:1px solid #333;
+  display:flex;
+  z-index:100;
+}
+.bottom-nav button {
+  flex:1; margin:0; padding:14px 6px; font-size:13px;
+  background:transparent; border-radius:0; border-right:1px solid #222;
+  color:#888;
+}
+.bottom-nav button.active { color:#3a7; border-bottom:2px solid #3a7; }
+.bottom-nav button:last-child { border-right:none; }
+
+/* Toast */
+#toast {
+  position:fixed; bottom:70px; left:50%; transform:translateX(-50%);
+  background:#2a2a2a; color:#eee; padding:12px 20px; border-radius:8px;
+  font-size:15px; z-index:9999; display:none;
+  border:1px solid #3a7; max-width:90%; text-align:center;
+}
+
+/* Loading */
+#loading {
+  position:fixed; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.7); z-index:9998; display:none;
+  align-items:center; justify-content:center; flex-direction:column;
+}
+#loading.show { display:flex; }
+#loading p { color:#eee; margin-top:12px; font-size:16px; }
+.spinner {
+  width:44px; height:44px; border:4px solid #333;
+  border-top-color:#3a7; border-radius:50%;
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Action selector */
+.action-btn { flex:1; margin:0; padding:14px 6px; font-size:15px; background:#333; }
+.action-btn.active { background:#3a7; }
+
+#adjustAmount { text-align:center; font-size:28px; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<header>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <img id="farmLogo" src="" alt="" style="height:40px;width:auto;display:none;border-radius:4px;">
+    <span>📦 Stock Desk</span>
+  </div>
+  <small id="syncStatus" style="color:#888;font-size:13px;">Offline</small>
+</header>
+
+<div id="loading"><div class="spinner"></div><p id="loadingMsg">Loading...</p></div>
+<div id="toast"></div>
+
+<!-- ===== DASHBOARD ===== -->
+<div id="screen-dashboard" class="screen active">
+  <div class="box" style="padding-bottom:6px;">
+    <div class="cat-tabs">
+      <button class="cat-tab active" id="tab-Feed"    onclick="setTab('Feed')">🌾 Feed</button>
+      <button class="cat-tab"        id="tab-Medical" onclick="setTab('Medical')">💉 Medical</button>
+      <button class="cat-tab"        id="tab-Lab"     onclick="setTab('Lab')">🔬 Lab</button>
+    </div>
+    <div id="stockList"><p style="color:#888;text-align:center;padding:20px;">Tap Refresh to load inventory.</p></div>
+  </div>
+</div>
+
+<!-- ===== ADJUST ===== -->
+<div id="screen-adjust" class="screen">
+  <div class="box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <h3 id="adjustTitle" style="margin:0;color:#3a7;font-size:20px;"></h3>
+      <button class="secondary" onclick="show('dashboard')" style="padding:8px 14px;font-size:14px;margin:0;">✕</button>
+    </div>
+    <div id="currentStock" style="font-size:26px;color:#3a7;text-align:center;padding:8px 0;font-weight:bold;"></div>
+  </div>
+
+  <div class="box">
+    <div style="display:flex;gap:6px;">
+      <button id="btnRestock" class="action-btn" onclick="setAction('increment')">📥 Restock</button>
+      <button id="btnUse"     class="action-btn secondary" onclick="setAction('decrement')">📤 Use</button>
+      <button id="btnCount"   class="action-btn secondary" onclick="setAction('reset')">🔢 Count</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button onclick="stepAmount(-1)" style="padding:14px 22px;margin:0;font-size:26px;background:#555;">−</button>
+      <input type="number" id="adjustAmount" value="1" min="0" step="any" style="flex:1;">
+      <button onclick="stepAmount(1)"  style="padding:14px 22px;margin:0;font-size:26px;">+</button>
+    </div>
+    <div id="quickAmounts" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;"></div>
+    <label>Notes (optional)</label>
+    <input type="text" id="adjustNotes" placeholder="e.g. Received delivery, batch lot #">
+  </div>
+
+  <!-- Injection prompt — shown for injectable Medical items on Use -->
+  <div class="box" id="injectionBox" style="display:none;">
+    <strong>💉 Injection?</strong>
+    <label style="margin-top:10px;">
+      <input type="checkbox" id="isInjection" onchange="toggleInjection()" style="width:auto;margin-right:8px;">
+      Also decrement syringe + needle
+    </label>
+    <div id="injectionFields" style="display:none;margin-top:8px;">
+      <label>Syringe Size</label>
+      <select id="syringeSelect"><option value="">-- select --</option></select>
+      <label>Needle Gauge</label>
+      <select id="needleSelect"><option value="">-- select --</option></select>
+    </div>
+  </div>
+
+  <button onclick="confirmAdjust()" style="width:calc(100% - 10px);margin:5px;padding:22px;">✅ Confirm</button>
+</div>
+
+<!-- ===== HISTORY ===== -->
+<div id="screen-history" class="screen">
+  <div class="box">
+    <strong>Recent Adjustments</strong>
+    <p style="color:#888;font-size:13px;margin:4px 0 0;">Local log of adjustments made from this device.</p>
+  </div>
+  <div id="historyList"></div>
+</div>
+
+<!-- ===== SETTINGS ===== -->
+<div id="screen-settings" class="screen">
+  <div class="box">
+    <strong>FarmOS Connection</strong>
+    <label>URL</label>
+    <input type="url" id="cfgUrl" placeholder="https://farm.example.com" autocomplete="url">
+    <label>Username</label>
+    <input type="text" id="cfgUser" autocomplete="username">
+    <label>Password</label>
+    <input type="password" id="cfgPass" autocomplete="current-password">
+    <button onclick="saveAndTest()" style="width:calc(100% - 10px);margin-top:12px;">🔌 Save &amp; Connect</button>
+    <div id="cfgResult" style="font-size:14px;color:#888;margin-top:6px;"></div>
+  </div>
+
+  <div class="box">
+    <strong>Add New Item</strong>
+    <label>Name</label>
+    <input type="text" id="newItemName" placeholder="e.g. Hay Bermuda">
+    <label>Category</label>
+    <select id="newItemCat">
+      <option value="e5e7b94d-d8b3-4c78-8554-097edc968208">Feed</option>
+      <option value="eb01f4d2-7dbf-46af-b2ff-426575eff635">Medical</option>
+      <option value="2f1ac8ab-c6b6-4f91-a504-b48e2c921e57">Lab</option>
+    </select>
+    <label>Unit</label>
+    <select id="newItemUnit">
+      <option value="count|22528b34-ae02-4d42-8e3f-1e3524caa911|count">Count</option>
+      <option value="bales|ca1ad806-6733-450f-a28f-2d8b1032d47e|count">Bales</option>
+      <option value="ml|60c97ab7-0c9a-40cc-a05c-e9ccf6c80f82|volume">ml</option>
+      <option value="lbs|830ff397-6d45-400a-a25a-d129d15229e2|weight">lbs</option>
+    </select>
+    <button onclick="createItem()" style="width:calc(100% - 10px);margin-top:12px;">➕ Create Item</button>
+    <div id="newItemResult" style="font-size:14px;color:#888;margin-top:6px;"></div>
+  </div>
+
+  <div class="box">
+    <strong>Low Stock Thresholds</strong>
+    <p style="color:#888;font-size:13px;margin-top:4px;">Amber warning when stock hits or falls below this value. 0 = off.</p>
+    <div id="thresholdList"></div>
+    <button onclick="saveThresholds()" class="wide secondary" style="margin-top:10px;">💾 Save Thresholds</button>
+  </div>
+
+  <div class="box">
+    <button onclick="doLogout()" class="wide danger">🚪 Log Out</button>
+  </div>
+</div>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+  <button id="nav-dashboard" class="active" onclick="show('dashboard')">🏠<br>Stock</button>
+  <button id="nav-history"                  onclick="show('history')">📋<br>History</button>
+  <button                                   onclick="refreshAssets()">🔄<br>Refresh</button>
+  <button id="nav-settings"                 onclick="show('settings')">⚙️<br>Settings</button>
+</nav>
+
+<script>
+// ===== SHARED MODULE: localStorage keys (farmdesk_ prefix) =====
+const LS = {
+  cfg:        'farmdesk_stock_cfg',
+  assets:     'farmdesk_stock_assets',
+  history:    'farmdesk_stock_history',
+  lastSync:   'farmdesk_stock_lastsync',
+  thresholds: 'farmdesk_stock_thresholds'
+};
+
+// ===== SHARED MODULE: farmOS taxonomy UUIDs =====
+const UNIT_MAP = {
+  count: { uuid: '22528b34-ae02-4d42-8e3f-1e3524caa911', measure: 'count',  label: ''      },
+  bales: { uuid: 'ca1ad806-6733-450f-a28f-2d8b1032d47e', measure: 'count',  label: 'bales' },
+  ml:    { uuid: '60c97ab7-0c9a-40cc-a05c-e9ccf6c80f82', measure: 'volume', label: 'ml'    },
+  lbs:   { uuid: '830ff397-6d45-400a-a25a-d129d15229e2', measure: 'weight', label: 'lbs'   }
+};
+
+const MAT_TYPE_NAME = {
+  'e5e7b94d-d8b3-4c78-8554-097edc968208': 'Feed',
+  'eb01f4d2-7dbf-46af-b2ff-426575eff635': 'Medical',
+  '2f1ac8ab-c6b6-4f91-a504-b48e2c921e57': 'Lab'
+};
+
+// All farm users — every new asset gets these owners
+// ===== SHARED MODULE: farm user UUIDs =====
+const ALL_OWNERS = [
+  '8bb78703-7675-412a-a1c9-bbb19ded1e7b', // Jess
+  '71afeef7-7da7-4917-88d6-4c3e0e46f226', // Tammy
+  'd4092614-9169-44d4-bdee-56f5affa6c47', // Loma
+  '18e559ae-e698-44ea-900c-b4c15eba1ff6'  // Emily
+];
+
+// Name fragments that trigger injection prompt on Medical Use
+const INJECTABLE_KEYWORDS = ['super b', 'cdt', 'ivermectin', 'bactrim', 'penicillin', 'la-200', 'excenel', 'liquamycin'];
+
+// ===== STATE =====
+let assets     = JSON.parse(localStorage.getItem(LS.assets)     || '[]');
+let history    = JSON.parse(localStorage.getItem(LS.history)    || '[]');
+let thresholds = JSON.parse(localStorage.getItem(LS.thresholds) || '{}');
+let currentTab = 'Feed';
+let adjustAsset  = null;
+let adjustAction = 'increment';
+
+// Syringe / needle asset key → UUID (populated after asset fetch)
+let syringeMap = {};
+let needleMap  = {};
+
+// ===== SCREEN NAV =====
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active'));
+  const navBtn = document.getElementById('nav-' + id);
+  if (navBtn) navBtn.classList.add('active');
+  if (id === 'history')  renderHistory();
+  if (id === 'settings') renderSettings();
+}
+
+// ===== TOAST =====
+let _toastTimer;
+function toast(msg, color) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = color || '#3a7';
+  el.style.display = 'block';
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+// ===== LOADING =====
+function setLoading(on, msg) {
+  const el = document.getElementById('loading');
+  if (on) { el.classList.add('show'); if (msg) document.getElementById('loadingMsg').textContent = msg; }
+  else     { el.classList.remove('show'); }
+}
+
+// ===== SHARED MODULE: OAuth2 authentication =====
+async function getToken(cfg) {
+  const tryAuth = async (url, scope) => {
+    const body = new URLSearchParams({
+      grant_type: 'password', client_id: 'farm',
+      username: cfg.user, password: cfg.pass, scope
+    });
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body, signal: ctrl.signal
+      });
+      clearTimeout(t);
+      if (res.ok) { const d = await res.json(); return d.access_token; }
+    } catch(e) { clearTimeout(t); }
+    return null;
+  };
+  for (const [url, proxy] of [['/proxy/oauth/token', true], [cfg.url + '/oauth/token', false]]) {
+    const token = await tryAuth(url, 'farm_manager');
+    if (token) { window._useProxy = proxy; return token; }
+  }
+  throw new Error('Auth failed — check credentials and URL');
+}
+
+function apiUrl(path) {
+  const cfg = JSON.parse(localStorage.getItem(LS.cfg) || '{}');
+  return window._useProxy ? '/proxy' + path : (cfg.url || '') + path;
+}
+
+function apiHeaders(token) {
+  return {
+    'Authorization': 'Bearer ' + token,
+    'Content-Type':  'application/vnd.api+json',
+    'Accept':        'application/vnd.api+json'
+  };
+}
+
+// ===== ASSET FETCH =====
+async function refreshAssets(silent) {
+  const cfg = JSON.parse(localStorage.getItem(LS.cfg) || '{}');
+  if (!cfg.url || !cfg.user || !cfg.pass) {
+    if (!silent) { show('settings'); toast('Configure farmOS first', '#c90'); }
+    return;
+  }
+  if (!silent) setLoading(true, 'Fetching inventory...');
+  try {
+    const token = await getToken(cfg);
+    const h = { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.api+json' };
+    let url = apiUrl('/api/asset/material?page[limit]=50&filter[archived]=0');
+    let all = [];
+    while (url) {
+      const res = await fetch(url, { headers: h });
+      if (!res.ok) throw new Error('Fetch failed: HTTP ' + res.status);
+      const d = await res.json();
+      all = all.concat(d.data || []);
+      url = d.links?.next?.href || null;
+    }
+    assets = all.map(a => {
+      const inv   = (a.attributes.inventory || [])[0] || {};
+      const matId = a.relationships?.material_type?.data?.id || '';
+      const name  = a.attributes.name || '';
+      const measure = inv.measure || guessMeasure(name);
+      const unitId  = inv.units ? null : guessUnitId(name, measure);
+      return {
+        uuid:     a.id,
+        name,
+        category: MAT_TYPE_NAME[matId] || 'Other',
+        matTypeId: matId,
+        measure,
+        value:    parseFloat(inv.value) || 0,
+        units:    inv.units || unitLabel_(name, measure),
+        unitId:   unitId || guessUnitId(name, measure)
+      };
+    });
+    buildInjectionMaps();
+    localStorage.setItem(LS.assets, JSON.stringify(assets));
+    const now = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    localStorage.setItem(LS.lastSync, now);
+    document.getElementById('syncStatus').textContent = 'Synced ' + now;
+    renderDashboard();
+    if (!silent) { setLoading(false); toast('✅ Inventory refreshed'); }
+  } catch(e) {
+    if (!silent) { setLoading(false); toast('❌ ' + e.message, '#c00'); }
+    document.getElementById('syncStatus').textContent = 'Offline';
+  }
+}
+
+function guessMeasure(name) {
+  const n = name.toLowerCase();
+  if (n.includes('hay') || n.includes('bale'))  return 'count';
+  if (n.includes(' ml') || n.includes('vaccine') || n.includes('solution') ||
+      n.includes('complex') || n.includes('ivermectin') || n.includes('cdt') ||
+      n.includes('bactrim')) return 'volume';
+  if (n.includes('lbs') || n.includes('grain'))  return 'weight';
+  return 'count';
+}
+
+function guessUnitId(name, measure) {
+  const n = name.toLowerCase();
+  if (n.includes('hay') || n.includes('bale')) return UNIT_MAP.bales.uuid;
+  if (measure === 'volume') return UNIT_MAP.ml.uuid;
+  if (measure === 'weight') return UNIT_MAP.lbs.uuid;
+  return UNIT_MAP.count.uuid;
+}
+
+function unitLabel_(name, measure) {
+  const n = name.toLowerCase();
+  if (n.includes('hay') || n.includes('bale')) return 'bales';
+  if (measure === 'volume') return 'ml';
+  if (measure === 'weight') return 'lbs';
+  return '';
+}
+
+function buildInjectionMaps() {
+  syringeMap = {};
+  needleMap  = {};
+  assets.forEach(a => {
+    const n = a.name.toLowerCase();
+    // Match "Syringe Luer Lock Xml" → key "syringe-luer-lock-xml"
+    if (n.includes('luer lock')) syringeMap[n.replace(/\s+/g, '-')] = a.uuid;
+    // Match "Needle XYG" → key "needle-xyg"
+    if (n.startsWith('needle ')) needleMap[n.replace(/\s+/g, '-')] = a.uuid;
+  });
+  populateInjectionSelects();
+}
+
+function populateInjectionSelects() {
+  const sEl = document.getElementById('syringeSelect');
+  const nEl = document.getElementById('needleSelect');
+  sEl.innerHTML = '<option value="">-- select --</option>';
+  nEl.innerHTML = '<option value="">-- select --</option>';
+  Object.keys(syringeMap).sort().forEach(key => {
+    sEl.innerHTML += `<option value="${key}">${key.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</option>`;
+  });
+  Object.keys(needleMap).sort().forEach(key => {
+    nEl.innerHTML += `<option value="${key}">${key.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</option>`;
+  });
+}
+
+// ===== CATEGORY TABS =====
+function setTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  renderDashboard();
+}
+
+// ===== DASHBOARD RENDER =====
+function renderDashboard() {
+  const list  = document.getElementById('stockList');
+  const items = assets.filter(a => a.category === currentTab).sort((a,b) => a.name.localeCompare(b.name));
+  if (!items.length) {
+    list.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">No items — tap Refresh or add in Settings.</p>';
+    return;
+  }
+  list.innerHTML = items.map(a => {
+    const thresh = thresholds[a.uuid] || 0;
+    const cls    = a.value <= 0 ? 'empty' : (thresh > 0 && a.value <= thresh ? 'low' : '');
+    const ul     = a.units;
+    return `<div class="stock-card ${cls}">
+      <div class="item-info" onclick="openAdjust('${a.uuid}')">
+        <div class="item-name">${a.name}</div>
+        <div class="item-qty">${a.value}${ul ? ' ' + ul : ''}</div>
+      </div>
+      <button class="adj-btn secondary" onclick="quickAdj('${a.uuid}',-1)">−</button>
+      <button class="adj-btn"           onclick="quickAdj('${a.uuid}', 1)">+</button>
+    </div>`;
+  }).join('');
+}
+
+// ===== QUICK ADJUST (dashboard +/-1) =====
+async function quickAdj(uuid, delta) {
+  const a = assets.find(x => x.uuid === uuid);
+  if (!a) return;
+  try {
+    await doAdjust(a, delta > 0 ? 'increment' : 'decrement', Math.abs(delta), '');
+    renderDashboard();
+  } catch(e) { toast('❌ ' + e.message, '#c00'); }
+}
+
+// ===== OPEN ADJUST SCREEN =====
+function openAdjust(uuid) {
+  adjustAsset = assets.find(a => a.uuid === uuid);
+  if (!adjustAsset) return;
+  document.getElementById('adjustTitle').textContent = adjustAsset.name;
+  updateStockDisplay();
+  setAction('increment');
+  document.getElementById('adjustNotes').value = '';
+  document.getElementById('isInjection').checked = false;
+  document.getElementById('injectionFields').style.display = 'none';
+  // Show injection box only for injectable Medical liquids
+  const isMedLiquid   = adjustAsset.category === 'Medical' && adjustAsset.measure === 'volume';
+  const isInjectable  = INJECTABLE_KEYWORDS.some(k => adjustAsset.name.toLowerCase().includes(k));
+  document.getElementById('injectionBox').style.display = (isMedLiquid && isInjectable) ? '' : 'none';
+  renderQuickAmounts();
+  show('adjust');
+  document.getElementById('nav-dashboard').classList.add('active'); // keep dashboard nav lit
+}
+
+function updateStockDisplay() {
+  if (!adjustAsset) return;
+  const ul = adjustAsset.units;
+  document.getElementById('currentStock').textContent =
+    adjustAsset.value + (ul ? ' ' + ul : '') + ' on hand';
+}
+
+function renderQuickAmounts() {
+  const n = adjustAsset.name.toLowerCase();
+  let qtys;
+  if (n.includes('hay') || n.includes('bale'))  qtys = [1, 5, 10, 20];
+  else if (adjustAsset.measure === 'volume')     qtys = [1, 5, 10, 50];
+  else                                           qtys = [1, 5, 10, 25];
+  document.getElementById('quickAmounts').innerHTML =
+    qtys.map(q => `<button class="secondary sm" onclick="setAmount(${q})">${q}</button>`).join('');
+}
+
+function setAction(action) {
+  adjustAction = action;
+  const map = { increment: 'btnRestock', decrement: 'btnUse', reset: 'btnCount' };
+  Object.keys(map).forEach(a => {
+    document.getElementById(map[a]).className =
+      'action-btn' + (a === action ? '' : ' secondary');
+  });
+  document.getElementById('adjustAmount').value =
+    action === 'reset' ? (adjustAsset?.value || 0) : 1;
+}
+
+function stepAmount(d) {
+  const el = document.getElementById('adjustAmount');
+  el.value = Math.max(0, (parseFloat(el.value) || 0) + d);
+}
+
+function setAmount(v) { document.getElementById('adjustAmount').value = v; }
+
+function toggleInjection() {
+  document.getElementById('injectionFields').style.display =
+    document.getElementById('isInjection').checked ? '' : 'none';
+}
+
+// ===== CONFIRM ADJUST =====
+async function confirmAdjust() {
+  const amount = parseFloat(document.getElementById('adjustAmount').value);
+  if (isNaN(amount) || (amount <= 0 && adjustAction !== 'reset')) {
+    toast('Enter a valid amount', '#c90'); return;
+  }
+  const notes = document.getElementById('adjustNotes').value.trim();
+  const adjustments = [{ asset: adjustAsset, action: adjustAction, amount }];
+  // Injection extras
+  if (document.getElementById('isInjection')?.checked) {
+    const sKey = document.getElementById('syringeSelect').value;
+    const nKey = document.getElementById('needleSelect').value;
+    if (sKey && syringeMap[sKey]) {
+      const sa = assets.find(a => a.uuid === syringeMap[sKey]);
+      if (sa) adjustments.push({ asset: sa, action: 'decrement', amount: 1 });
+    }
+    if (nKey && needleMap[nKey]) {
+      const na = assets.find(a => a.uuid === needleMap[nKey]);
+      if (na) adjustments.push({ asset: na, action: 'decrement', amount: 1 });
+    }
+  }
+  setLoading(true, 'Saving to farmOS...');
+  try {
+    for (const adj of adjustments) {
+      await doAdjust(adj.asset, adj.action, adj.amount, notes);
+    }
+    setLoading(false);
+    toast('✅ Saved');
+    renderDashboard();
+    show('dashboard');
+  } catch(e) {
+    setLoading(false);
+    toast('❌ ' + e.message, '#c00');
+  }
+}
+
+// ===== CORE INVENTORY ADJUSTMENT =====
+// ===== SHARED MODULE: doAdjust — called by StockDesk UI and GoatDesk med integration =====
+// action: 'increment' | 'decrement' | 'reset'
+// asset: { uuid, name, measure, unitId }
+async function doAdjust(asset, action, amount, notes) {
+  const cfg = JSON.parse(localStorage.getItem(LS.cfg) || '{}');
+  if (!cfg.url) throw new Error('farmOS not configured');
+  const token = await getToken(cfg);
+  const h = apiHeaders(token);
+  // Fraction encoding: avoid decimals where possible
+  const num = Number.isInteger(amount) ? String(amount) : String(Math.round(amount * 100));
+  const den = Number.isInteger(amount) ? '1' : '100';
+  // Step 1: POST quantity
+  const qBody = {
+    data: {
+      type: 'quantity--standard',
+      attributes: {
+        measure: asset.measure || 'count',
+        value: { numerator: num, denominator: den },
+        inventory_adjustment: action,
+        ...(notes ? { label: notes } : {})
+      },
+      relationships: {
+        inventory_asset: { data: { type: 'asset--material', id: asset.uuid } },
+        ...(asset.unitId ? { units: { data: { type: 'taxonomy_term--unit', id: asset.unitId } } } : {})
+      }
+    }
+  };
+  const qRes = await fetch(apiUrl('/api/quantity/standard'), {
+    method: 'POST', headers: h, body: JSON.stringify(qBody)
+  });
+  if (!qRes.ok) {
+    const e = await qRes.json().catch(() => ({}));
+    throw new Error('Quantity: ' + (e.errors?.[0]?.detail || qRes.status));
+  }
+  const qData  = await qRes.json();
+  const qUUID  = qData.data.id;
+  const qRevId = qData.data.attributes?.drupal_internal__revision_id;
+  // Step 2: POST log
+  const logBundle = action === 'increment' ? 'input' : (action === 'decrement' ? 'output' : 'observation');
+  const logBody = {
+    data: {
+      type: 'log--' + logBundle,
+      attributes: {
+        name: 'Stock ' + action + ': ' + asset.name,
+        timestamp: new Date().toISOString(),
+        status: 'done',
+        ...(notes ? { notes: { value: notes, format: 'default' } } : {})
+      },
+      relationships: {
+        asset:    { data: [{ type: 'asset--material', id: asset.uuid }] },
+        quantity: { data: [{ type: 'quantity--standard', id: qUUID, meta: { target_revision_id: qRevId } }] }
+      }
+    }
+  };
+  const lRes = await fetch(apiUrl('/api/log/' + logBundle), {
+    method: 'POST', headers: h, body: JSON.stringify(logBody)
+  });
+  if (!lRes.ok) {
+    const e = await lRes.json().catch(() => ({}));
+    throw new Error('Log: ' + (e.errors?.[0]?.detail || lRes.status));
+  }
+  // Update local cache
+  const cached = assets.find(x => x.uuid === asset.uuid);
+  if (cached) {
+    if      (action === 'increment') cached.value += amount;
+    else if (action === 'decrement') cached.value  = Math.max(0, cached.value - amount);
+    else                             cached.value  = amount;
+    localStorage.setItem(LS.assets, JSON.stringify(assets));
+  }
+  // Local history entry
+  history.unshift({ id: qUUID, name: asset.name, action, amount, notes, time: new Date().toISOString() });
+  if (history.length > 100) history = history.slice(0, 100);
+  localStorage.setItem(LS.history, JSON.stringify(history));
+}
+
+// ===== CREATE NEW ITEM =====
+async function createItem() {
+  const name = document.getElementById('newItemName').value.trim();
+  if (!name) { toast('Enter item name', '#c90'); return; }
+  const matTypeId  = document.getElementById('newItemCat').value;
+  const unitParts  = document.getElementById('newItemUnit').value.split('|');
+  const unitLabel__ = unitParts[0];
+  const unitUUID   = unitParts[1];
+  const measure    = unitParts[2];
+  const cfg = JSON.parse(localStorage.getItem(LS.cfg) || '{}');
+  if (!cfg.url) { toast('Connect to farmOS first', '#c90'); return; }
+  setLoading(true, 'Creating item...');
+  try {
+    const token = await getToken(cfg);
+    const h = apiHeaders(token);
+    const payload = {
+      data: {
+        type: 'asset--material',
+        attributes: { name },
+        relationships: {
+          material_type: { data: { type: 'taxonomy_term--material_type', id: matTypeId } },
+          owner:         { data: ALL_OWNERS.map(id => ({ type: 'user--user', id })) }
+        }
+      }
+    };
+    const res = await fetch(apiUrl('/api/asset/material'), {
+      method: 'POST', headers: h, body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.errors?.[0]?.detail || res.status);
+    }
+    const d = await res.json();
+    assets.push({
+      uuid: d.data.id, name,
+      category: MAT_TYPE_NAME[matTypeId] || 'Other',
+      matTypeId, measure, value: 0, units: unitLabel__, unitId: unitUUID
+    });
+    localStorage.setItem(LS.assets, JSON.stringify(assets));
+    buildInjectionMaps();
+    document.getElementById('newItemName').value = '';
+    const el = document.getElementById('newItemResult');
+    el.textContent = '✅ Created: ' + name; el.style.color = '#3a7';
+    setLoading(false);
+    renderThresholdList();
+  } catch(e) {
+    setLoading(false);
+    const el = document.getElementById('newItemResult');
+    el.textContent = '❌ ' + e.message; el.style.color = '#c00';
+  }
+}
+
+// ===== SETTINGS =====
+function renderSettings() {
+  const cfg = JSON.parse(localStorage.getItem(LS.cfg) || '{}');
+  if (cfg.url)  document.getElementById('cfgUrl').value  = cfg.url;
+  if (cfg.user) document.getElementById('cfgUser').value = cfg.user;
+  if (cfg.pass) document.getElementById('cfgPass').value = cfg.pass;
+  renderThresholdList();
+}
+
+function renderThresholdList() {
+  const list = document.getElementById('thresholdList');
+  if (!assets.length) {
+    list.innerHTML = '<p style="color:#888;font-size:13px;">Connect and refresh to see items.</p>';
+    return;
+  }
+  list.innerHTML = assets.sort((a,b) => a.name.localeCompare(b.name)).map(a => `
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+      <span style="flex:1;font-size:14px;color:#ccc;">${a.name}</span>
+      <input type="number" min="0" step="1" value="${thresholds[a.uuid] || 0}"
+        id="thresh_${a.uuid}" style="width:80px;padding:8px;font-size:15px;">
+    </div>`).join('');
+}
+
+function saveThresholds() {
+  assets.forEach(a => {
+    const el = document.getElementById('thresh_' + a.uuid);
+    if (el) thresholds[a.uuid] = parseFloat(el.value) || 0;
+  });
+  localStorage.setItem(LS.thresholds, JSON.stringify(thresholds));
+  toast('✅ Thresholds saved');
+  renderDashboard();
+}
+
+async function saveAndTest() {
+  const url  = document.getElementById('cfgUrl').value.trim().replace(/\/$/, '');
+  const user = document.getElementById('cfgUser').value.trim();
+  const pass = document.getElementById('cfgPass').value;
+  const cfg  = { url, user, pass };
+  localStorage.setItem(LS.cfg, JSON.stringify(cfg));
+  const el = document.getElementById('cfgResult');
+  el.textContent = 'Connecting...'; el.style.color = '#888';
+  try {
+    const token = await getToken(cfg);
+    const res = await fetch(apiUrl('/api'), { headers: { 'Authorization': 'Bearer ' + token } });
+    if (res.ok) {
+      let name = url;
+      try { const d = await res.json(); name = d?.meta?.farm?.name || url; } catch(e) {}
+      el.textContent = '✅ Connected: ' + name; el.style.color = '#3a7';
+      await refreshAssets();
+    } else {
+      el.textContent = '❌ API error ' + res.status; el.style.color = '#c00';
+    }
+  } catch(e) {
+    el.textContent = '❌ ' + e.message; el.style.color = '#c00';
+  }
+}
+
+function doLogout() {
+  if (!confirm('Log out? Cached inventory will be cleared.')) return;
+  localStorage.removeItem(LS.cfg);
+  localStorage.removeItem(LS.assets);
+  localStorage.removeItem(LS.lastSync);
+  assets = [];
+  document.getElementById('syncStatus').textContent = 'Offline';
+  renderDashboard();
+  show('settings');
+  toast('Logged out');
+}
+
+// ===== HISTORY =====
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  if (!history.length) {
+    list.innerHTML = '<div class="box" style="color:#888;text-align:center;padding:20px;">No adjustments yet.</div>';
+    return;
+  }
+  list.innerHTML = history.slice(0, 50).map(h => {
+    const icon = h.action === 'increment' ? '📥' : (h.action === 'decrement' ? '📤' : '🔢');
+    const sign = h.action === 'increment' ? '+' : (h.action === 'decrement' ? '−' : '=');
+    const t    = new Date(h.time).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div class="box">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <strong style="font-size:15px;">${icon} ${h.name}</strong>
+        <span style="color:#3a7;font-size:16px;">${sign}${h.amount}</span>
+      </div>
+      ${h.notes ? `<div style="color:#888;font-size:13px;margin-top:3px;">${h.notes}</div>` : ''}
+      <div style="color:#666;font-size:12px;margin-top:3px;">${t}</div>
+    </div>`;
+  }).join('');
+}
+
+// ===== LOGO =====
+(function() {
+  const logo = localStorage.getItem('farmdesk_logo');
+  const el   = document.getElementById('farmLogo');
+  if (logo && el) { el.src = logo; el.style.display = 'block'; }
+})();
+
+// ===== INIT =====
+const _lastSync = localStorage.getItem(LS.lastSync);
+document.getElementById('syncStatus').textContent = _lastSync ? 'Synced ' + _lastSync : 'Offline';
+renderDashboard();
+populateInjectionSelects();
+setTimeout(() => refreshAssets(true), 600);
+</script>
+</body>
+</html>

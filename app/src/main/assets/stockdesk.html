@@ -177,12 +177,12 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   <div class="box">
     <div style="display:flex;align-items:center;gap:8px;">
       <button onclick="stepAmount(-1)" style="padding:14px 22px;margin:0;font-size:26px;background:#555;">−</button>
-      <input type="number" id="adjustAmount" value="1" min="0" step="any" style="flex:1;" oninput="calcCost()">
+      <input type="number" id="adjustAmount" value="1" min="0" step="any" style="flex:1;" oninput="calcCost()" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('adjustNotes').focus();}">
       <button onclick="stepAmount(1)"  style="padding:14px 22px;margin:0;font-size:26px;">+</button>
     </div>
     <div id="quickAmounts" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;"></div>
     <label>Notes (optional)</label>
-    <input type="text" id="adjustNotes" placeholder="e.g. Received delivery, batch lot #">
+    <input type="text" id="adjustNotes" placeholder="e.g. Received delivery, batch lot #" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();const pb=document.getElementById('priceBox');if(pb&&pb.style.display!=='none'){document.getElementById('priceUnit').focus();}else{confirmAdjust();}}">
   </div>
   <!-- Price box — shown on Restock only -->
   <div class="box" id="priceBox" style="display:none;">
@@ -192,7 +192,7 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
       <button id="btnLot"  class="action-btn secondary" onclick="setPriceType('lot')">Lot</button>
     </div>
     <label>Unit Price ($)</label>
-    <input type="number" id="priceUnit" min="0" step="0.01" placeholder="0.00" oninput="calcCost()">
+    <input type="number" id="priceUnit" min="0" step="0.01" placeholder="0.00" oninput="calcCost()" enterkeyhint="done" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmAdjust();}">
     <div id="costTotal" style="color:#3a7;font-size:18px;font-weight:bold;margin-top:8px;text-align:center;"></div>
   </div>
   <!-- Photo box — attach photo to asset -->
@@ -256,18 +256,18 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   <div class="box">
     <strong>FarmOS Connection</strong>
     <label>URL</label>
-    <input type="url" id="cfgUrl" placeholder="https://farm.example.com" autocomplete="url">
+    <input type="url" id="cfgUrl" placeholder="https://farm.example.com" autocomplete="url" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('cfgUser').focus();}">
     <label>Username</label>
-    <input type="text" id="cfgUser" autocomplete="username">
+    <input type="text" id="cfgUser" autocomplete="username" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('cfgPass').focus();}">
     <label>Password</label>
-    <input type="password" id="cfgPass" autocomplete="current-password">
+    <input type="password" id="cfgPass" autocomplete="current-password" enterkeyhint="done" onkeydown="if(event.key==='Enter'){event.preventDefault();saveAndTest();}">
     <button onclick="saveAndTest()" style="width:calc(100% - 10px);margin-top:12px;">🔌 Save &amp; Connect</button>
     <div id="cfgResult" style="font-size:14px;color:#888;margin-top:6px;"></div>
   </div>
   <div class="box">
     <strong>Add New Item</strong>
     <label>Name</label>
-    <input type="text" id="newItemName" placeholder="e.g. Hay Bermuda">
+    <input type="text" id="newItemName" placeholder="e.g. Hay Bermuda" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('newItemNotes').focus();}">
     <label>Category</label>
     <select id="newItemCat">
       <option value="e5e7b94d-d8b3-4c78-8554-097edc968208">Feed</option>
@@ -282,7 +282,7 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
       <option value="lbs|830ff397-6d45-400a-a25a-d129d15229e2|weight">lbs</option>
     </select>
     <label>Notes (optional)</label>
-    <input type="text" id="newItemNotes" placeholder="e.g. Dosage, supplier, storage info">
+    <input type="text" id="newItemNotes" placeholder="e.g. Dosage, supplier, storage info" enterkeyhint="done" onkeydown="if(event.key==='Enter'){event.preventDefault();queueCreateItem();}">
     <button onclick="queueCreateItem()" style="width:calc(100% - 10px);margin-top:12px;">➕ Create Item</button>
     <div id="newItemResult" style="font-size:14px;color:#888;margin-top:6px;"></div>
   </div>

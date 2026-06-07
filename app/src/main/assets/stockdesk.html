@@ -165,6 +165,7 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
       <button class="secondary" onclick="show('dashboard')" style="padding:8px 14px;font-size:14px;margin:0;">✕</button>
     </div>
     <div id="currentStock" style="font-size:26px;color:#3a7;text-align:center;padding:8px 0;font-weight:bold;"></div>
+    <div id="adjustAssetNotes" style="color:#888;font-size:13px;display:none;margin-top:4px;"></div>
   </div>
   <div class="box">
     <div style="display:flex;gap:6px;">
@@ -176,12 +177,34 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   <div class="box">
     <div style="display:flex;align-items:center;gap:8px;">
       <button onclick="stepAmount(-1)" style="padding:14px 22px;margin:0;font-size:26px;background:#555;">−</button>
-      <input type="number" id="adjustAmount" value="1" min="0" step="any" style="flex:1;">
+      <input type="number" id="adjustAmount" value="1" min="0" step="any" style="flex:1;" oninput="calcCost()">
       <button onclick="stepAmount(1)"  style="padding:14px 22px;margin:0;font-size:26px;">+</button>
     </div>
     <div id="quickAmounts" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;"></div>
     <label>Notes (optional)</label>
     <input type="text" id="adjustNotes" placeholder="e.g. Received delivery, batch lot #">
+  </div>
+  <!-- Price box — shown on Restock only -->
+  <div class="box" id="priceBox" style="display:none;">
+    <strong>💰 Cost (optional)</strong>
+    <div style="display:flex;gap:6px;margin-top:10px;">
+      <button id="btnEach" class="action-btn" onclick="setPriceType('each')">Each</button>
+      <button id="btnLot"  class="action-btn secondary" onclick="setPriceType('lot')">Lot</button>
+    </div>
+    <label>Unit Price ($)</label>
+    <input type="number" id="priceUnit" min="0" step="0.01" placeholder="0.00" oninput="calcCost()">
+    <div id="costTotal" style="color:#3a7;font-size:18px;font-weight:bold;margin-top:8px;text-align:center;"></div>
+  </div>
+  <!-- Photo box — attach photo to asset -->
+  <div class="box" id="photoBox">
+    <strong>📷 Asset Photo</strong>
+    <div id="adjustPhotoPreview" style="margin-top:8px;"></div>
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <button onclick="takeAssetPhoto()" class="secondary" style="flex:1;margin:0;padding:12px;font-size:14px;">📷 Camera</button>
+      <button onclick="document.getElementById('assetPhotoInput').click()" class="secondary" style="flex:1;margin:0;padding:12px;font-size:14px;">🖼️ Gallery</button>
+      <button id="clearAssetPhotoBtn" onclick="clearAssetPhoto()" class="danger" style="display:none;margin:0;padding:12px;font-size:14px;">✕</button>
+    </div>
+    <input type="file" id="assetPhotoInput" accept="image/*" style="display:none;" onchange="handleAssetPhoto(this)">
   </div>
   <!-- Injection prompt — shown for injectable Medical items on Use -->
   <div class="box" id="injectionBox" style="display:none;">
@@ -205,6 +228,13 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   <div class="box">
     <strong>Recent Adjustments</strong>
     <p style="color:#888;font-size:13px;margin:4px 0 0;">Local log of adjustments. ⏳ = not yet synced to farmOS.</p>
+  </div>
+  <div class="box" style="display:flex;gap:8px;align-items:center;">
+    <label style="margin:0;display:flex;align-items:center;gap:6px;flex:1;">
+      <input type="checkbox" id="selectAllHistory" onchange="toggleSelectAll(this.checked)" style="width:auto;margin:0;">
+      Select All
+    </label>
+    <button onclick="deleteSelected()" style="margin:0;background:#8b0000;padding:10px 16px;font-size:15px;">🗑️ Delete Selected</button>
   </div>
   <div id="historyList"></div>
 </div>
@@ -251,6 +281,8 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
       <option value="ml|60c97ab7-0c9a-40cc-a05c-e9ccf6c80f82|volume">ml</option>
       <option value="lbs|830ff397-6d45-400a-a25a-d129d15229e2|weight">lbs</option>
     </select>
+    <label>Notes (optional)</label>
+    <input type="text" id="newItemNotes" placeholder="e.g. Dosage, supplier, storage info">
     <button onclick="queueCreateItem()" style="width:calc(100% - 10px);margin-top:12px;">➕ Create Item</button>
     <div id="newItemResult" style="font-size:14px;color:#888;margin-top:6px;"></div>
   </div>
@@ -259,6 +291,9 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
     <p style="color:#888;font-size:13px;margin-top:4px;">Amber warning when stock hits or falls below this value. 0 = off.</p>
     <div id="thresholdList"></div>
     <button onclick="saveThresholds()" class="wide secondary" style="margin-top:10px;">💾 Save Thresholds</button>
+  </div>
+  <div class="box">
+    <button onclick="clearHistory()" class="wide danger">🗑️ Clear All History</button>
   </div>
   <div class="box">
     <button onclick="doLogout()" class="wide danger">🚪 Log Out</button>
@@ -281,7 +316,8 @@ const LS = {
   history:    'farmdesk_stock_history',
   lastSync:   'farmdesk_stock_lastsync',
   thresholds: 'farmdesk_stock_thresholds',
-  pending:    'farmdesk_stock_pending'   // local-first queue
+  pending:    'farmdesk_stock_pending',  // local-first queue
+  photos:     'farmdesk_stock_photos'   // base64 photos keyed by asset UUID
 };
 
 // ===== SHARED MODULE: farmOS taxonomy UUIDs =====
@@ -314,6 +350,8 @@ let assets     = JSON.parse(localStorage.getItem(LS.assets)     || '[]');
 let history    = JSON.parse(localStorage.getItem(LS.history)    || '[]');
 let thresholds = JSON.parse(localStorage.getItem(LS.thresholds) || '{}');
 let pending    = JSON.parse(localStorage.getItem(LS.pending)    || '[]');
+let photos     = JSON.parse(localStorage.getItem(LS.photos)     || '{}');
+let currentPhoto = null; // base64 for asset photo being attached
 let currentTab   = 'Feed';
 let adjustAsset  = null;
 let adjustAction = 'increment';
@@ -428,6 +466,9 @@ async function refreshAssets(silent) {
       const matId  = a.relationships?.material_type?.data?.id || '';
       const name   = a.attributes.name || '';
       const measure = inv.measure || guessMeasure(name);
+      const notesVal = a.attributes.notes?.value || '';
+      // Preserve locally-stored photo — never overwrite with fetch
+      const existingPhoto = photos[a.id] || null;
       return {
         uuid:      a.id,
         name,
@@ -436,7 +477,9 @@ async function refreshAssets(silent) {
         measure,
         value:     parseFloat(inv.value) || 0,
         units:     inv.units || unitLabel_(name, measure),
-        unitId:    guessUnitId(name, measure)
+        unitId:    guessUnitId(name, measure),
+        notes:     notesVal,
+        photo:     existingPhoto
       };
     });
     buildInjectionMaps();
@@ -518,10 +561,14 @@ function renderDashboard() {
     const thresh = thresholds[a.uuid] || 0;
     const cls    = a.value <= 0 ? 'empty' : (thresh > 0 && a.value <= thresh ? 'low' : '');
     const ul     = a.units;
+    const thumb  = a.photo ? `<img src="${a.photo}" style="width:44px;height:44px;object-fit:cover;border-radius:4px;flex-shrink:0;">` : '';
+    const notesSnip = a.notes ? `<div style="color:#888;font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">${a.notes}</div>` : '';
     return `<div class="stock-card ${cls}">
+      ${thumb}
       <div class="item-info" onclick="openAdjust('${a.uuid}')">
         <div class="item-name">${a.name}</div>
         <div class="item-qty">${a.value}${ul ? ' ' + ul : ''}</div>
+        ${notesSnip}
       </div>
       <button class="adj-btn secondary" onclick="quickAdj('${a.uuid}',-1)">−</button>
       <button class="adj-btn"           onclick="quickAdj('${a.uuid}', 1)">+</button>
@@ -548,6 +595,29 @@ function openAdjust(uuid) {
   document.getElementById('adjustNotes').value = '';
   document.getElementById('isInjection').checked = false;
   document.getElementById('injectionFields').style.display = 'none';
+  // Notes display
+  const notesEl = document.getElementById('adjustAssetNotes');
+  if (adjustAsset.notes) {
+    notesEl.textContent = adjustAsset.notes;
+    notesEl.style.display = 'block';
+  } else {
+    notesEl.style.display = 'none';
+  }
+  // Price reset
+  document.getElementById('priceUnit').value = '';
+  document.getElementById('costTotal').textContent = '';
+  setPriceType('each');
+  // Photo — load existing asset photo if present
+  currentPhoto = adjustAsset.photo || null;
+  const preview = document.getElementById('adjustPhotoPreview');
+  const clearBtn = document.getElementById('clearAssetPhotoBtn');
+  if (currentPhoto) {
+    preview.innerHTML = `<img src="${currentPhoto}" style="width:100%;border-radius:6px;">`;
+    clearBtn.style.display = 'inline-block';
+  } else {
+    preview.innerHTML = '';
+    clearBtn.style.display = 'none';
+  }
   const isMedLiquid  = adjustAsset.category === 'Medical' && adjustAsset.measure === 'volume';
   const isInjectable = INJECTABLE_KEYWORDS.some(k => adjustAsset.name.toLowerCase().includes(k));
   document.getElementById('injectionBox').style.display = (isMedLiquid && isInjectable) ? '' : 'none';
@@ -579,15 +649,95 @@ function setAction(action) {
   });
   document.getElementById('adjustAmount').value =
     action === 'reset' ? (adjustAsset?.value || 0) : 1;
+  document.getElementById('priceBox').style.display = action === 'increment' ? '' : 'none';
+  calcCost();
 }
 function stepAmount(d) {
   const el = document.getElementById('adjustAmount');
   el.value = Math.max(0, (parseFloat(el.value) || 0) + d);
+  calcCost();
 }
 function setAmount(v) { document.getElementById('adjustAmount').value = v; }
 function toggleInjection() {
   document.getElementById('injectionFields').style.display =
     document.getElementById('isInjection').checked ? '' : 'none';
+}
+
+// ===== PRICE =====
+let priceType = 'each';
+function setPriceType(type) {
+  priceType = type;
+  document.getElementById('btnEach').className = 'action-btn' + (type === 'each' ? '' : ' secondary');
+  document.getElementById('btnLot').className  = 'action-btn' + (type === 'lot'  ? '' : ' secondary');
+  calcCost();
+}
+function calcCost() {
+  const qty   = parseFloat(document.getElementById('adjustAmount')?.value) || 0;
+  const unit  = parseFloat(document.getElementById('priceUnit')?.value) || 0;
+  const el    = document.getElementById('costTotal');
+  if (!el) return;
+  if (!unit) { el.textContent = ''; return; }
+  const total = qty * unit;
+  el.textContent = priceType === 'lot'
+    ? `Cost: $${total.toFixed(2)} (lot@${qty} x $${unit.toFixed(2)}/ea)`
+    : `Cost: $${total.toFixed(2)} (${qty} x $${unit.toFixed(2)}/ea)`;
+}
+function buildCostNote() {
+  const qty  = parseFloat(document.getElementById('adjustAmount')?.value) || 0;
+  const unit = parseFloat(document.getElementById('priceUnit')?.value) || 0;
+  if (!unit) return '';
+  const total = qty * unit;
+  return priceType === 'lot'
+    ? `Cost: $${total.toFixed(2)} (lot@${qty} x $${unit.toFixed(2)}/ea)`
+    : `Cost: $${total.toFixed(2)} (${qty} x $${unit.toFixed(2)}/ea)`;
+}
+
+// ===== ASSET PHOTO =====
+// ===== SHARED MODULE: asset photo handling =====
+function takeAssetPhoto() {
+  if (window.AndroidBridge && window.AndroidBridge.takePhoto) {
+    window.AndroidBridge.takePhoto('onAndroidAssetPhoto');
+  } else {
+    document.getElementById('assetPhotoInput').click();
+  }
+}
+function onAndroidAssetPhoto(dataUrl) {
+  if (!dataUrl) return;
+  const full = dataUrl.startsWith('data:') ? dataUrl : 'data:image/jpeg;base64,' + dataUrl;
+  resizeAndSetAssetPhoto(full);
+}
+function handleAssetPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => resizeAndSetAssetPhoto(e.target.result);
+  reader.readAsDataURL(file);
+}
+function resizeAndSetAssetPhoto(dataUrl) {
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    const maxW   = 800;
+    const ratio  = Math.min(1, maxW / img.width);
+    canvas.width  = img.width  * ratio;
+    canvas.height = img.height * ratio;
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    currentPhoto = canvas.toDataURL('image/jpeg', 0.7);
+    const preview = document.getElementById('adjustPhotoPreview');
+    if (preview) preview.innerHTML = `<img src="${currentPhoto}" style="width:100%;border-radius:6px;">`;
+    const clearBtn = document.getElementById('clearAssetPhotoBtn');
+    if (clearBtn) clearBtn.style.display = 'inline-block';
+  };
+  img.src = dataUrl;
+}
+function clearAssetPhoto() {
+  currentPhoto = null;
+  const preview = document.getElementById('adjustPhotoPreview');
+  if (preview) preview.innerHTML = '';
+  const clearBtn = document.getElementById('clearAssetPhotoBtn');
+  if (clearBtn) clearBtn.style.display = 'none';
+  const input = document.getElementById('assetPhotoInput');
+  if (input) input.value = '';
 }
 
 // ===== CONFIRM ADJUST — saves locally, no network =====
@@ -596,7 +746,10 @@ function confirmAdjust() {
   if (isNaN(amount) || (amount <= 0 && adjustAction !== 'reset')) {
     toast('Enter a valid amount', '#c90'); return;
   }
-  const notes = document.getElementById('adjustNotes').value.trim();
+  const userNotes = document.getElementById('adjustNotes').value.trim();
+  const costNote  = adjustAction === 'increment' ? buildCostNote() : '';
+  const notes     = costNote && userNotes ? costNote + '\n' + userNotes
+                  : costNote || userNotes;
   const adjustments = [{ asset: adjustAsset, action: adjustAction, amount }];
   // Injection extras
   if (document.getElementById('isInjection')?.checked) {
@@ -613,6 +766,28 @@ function confirmAdjust() {
   }
   for (const adj of adjustments) {
     doAdjust(adj.asset, adj.action, adj.amount, notes);
+  }
+  // Save photo to asset locally and queue photo upload if UUID is real
+  if (currentPhoto !== adjustAsset.photo) {
+    adjustAsset.photo = currentPhoto;
+    photos[adjustAsset.uuid] = currentPhoto;
+    localStorage.setItem(LS.photos, JSON.stringify(photos));
+    localStorage.setItem(LS.assets, JSON.stringify(assets));
+    // Queue photo sync if asset has a real UUID (not local_xxxx)
+    if (currentPhoto && adjustAsset.uuid && !adjustAsset.uuid.startsWith('local_')) {
+      const photoEntry = {
+        id:      'photo_' + adjustAsset.uuid,
+        type:    'photo',
+        uuid:    adjustAsset.uuid,
+        name:    adjustAsset.name,
+        photo:   currentPhoto,
+        synced:  false
+      };
+      // Replace any existing queued photo for this asset
+      pending = pending.filter(p => !(p.type === 'photo' && p.uuid === adjustAsset.uuid));
+      pending.push(photoEntry);
+      localStorage.setItem(LS.pending, JSON.stringify(pending));
+    }
   }
   toast('✅ Saved locally');
   renderDashboard();
@@ -663,6 +838,7 @@ function queueCreateItem() {
   const unitLabel__ = unitParts[0];
   const unitUUID    = unitParts[1];
   const measure     = unitParts[2];
+  const notes       = document.getElementById('newItemNotes').value.trim();
   // Add to local asset list immediately so it shows on dashboard
   const tempId = 'local_' + Date.now();
   assets.push({
@@ -674,6 +850,8 @@ function queueCreateItem() {
     value:     0,
     units:     unitLabel__,
     unitId:    unitUUID,
+    notes,
+    photo:     null,
     localOnly: true
   });
   localStorage.setItem(LS.assets, JSON.stringify(assets));
@@ -688,11 +866,13 @@ function queueCreateItem() {
     unitLabel:  unitLabel__,
     unitUUID,
     measure,
+    notes,
     synced:     false
   };
   pending.push(entry);
   localStorage.setItem(LS.pending, JSON.stringify(pending));
-  document.getElementById('newItemName').value = '';
+  document.getElementById('newItemName').value  = '';
+  document.getElementById('newItemNotes').value = '';
   const el = document.getElementById('newItemResult');
   el.textContent = '✅ Added locally — push to sync'; el.style.color = '#c90';
   updateSyncBadge();
@@ -740,7 +920,10 @@ async function syncToFarmOS() {
         const payload = {
           data: {
             type: 'asset--material',
-            attributes: { name: item.name },
+            attributes: {
+              name: item.name,
+              ...(item.notes ? { notes: { value: item.notes, format: 'default' } } : {})
+            },
             relationships: {
               material_type: { data: { type: 'taxonomy_term--material_type', id: item.matTypeId } },
               owner:         { data: ALL_OWNERS.map(id => ({ type: 'user--user', id })) }
@@ -763,11 +946,41 @@ async function syncToFarmOS() {
           localAsset.localOnly = false;
           localStorage.setItem(LS.assets, JSON.stringify(assets));
         }
-        // Also update any queued adjustments for this tempId
+        // Also update any queued adjustments or photos for this tempId
         pending.forEach(p => { if (p.uuid === item.tempId) p.uuid = realUUID; });
+        // Update photos map key
+        if (photos[item.tempId]) {
+          photos[realUUID] = photos[item.tempId];
+          delete photos[item.tempId];
+          localStorage.setItem(LS.photos, JSON.stringify(photos));
+        }
         item.synced = true;
         ok++;
         logEl.textContent += '✅ Created: ' + item.name + '\n';
+
+      } else if (item.type === 'photo') {
+        // POST binary image to asset image field
+        // endpoint: /api/asset/material/{uuid}/image
+        try {
+          const photoRes  = await fetch(item.photo);
+          const blob      = await photoRes.blob();
+          const uploadRes = await fetch(apiUrl(`/api/asset/material/${item.uuid}/image`), {
+            method:  'POST',
+            headers: {
+              'Content-Type':        'application/octet-stream',
+              'Content-Disposition': 'attachment; filename="stockdesk-photo.jpg"',
+              'Accept':              'application/vnd.api+json',
+              'Authorization':       'Bearer ' + token
+            },
+            body: blob
+          });
+          if (!uploadRes.ok) throw new Error('HTTP ' + uploadRes.status);
+          item.synced = true;
+          ok++;
+          logEl.textContent += '✅ 📷 Photo: ' + item.name + '\n';
+        } catch(pe) {
+          throw new Error('Photo upload: ' + pe.message);
+        }
       } else if (item.type === 'adjust') {
         // POST quantity then log — same pattern as original doAdjust
         const num = Number.isInteger(item.amount) ? String(item.amount) : String(Math.round(item.amount * 100));
@@ -921,13 +1134,16 @@ function renderHistory() {
     const sign     = h.action === 'increment' ? '+' : (h.action === 'decrement' ? '−' : '=');
     const syncMark = h.synced ? ' ✓' : ' ⏳';
     const t        = new Date(h.time).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    return `<div class="box">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;">
-        <strong style="font-size:15px;">${icon} ${h.name}</strong>
-        <span style="color:#3a7;font-size:16px;">${sign}${h.amount}</span>
+    return `<div class="box" style="display:flex;align-items:flex-start;gap:10px;">
+      <input type="checkbox" class="history-select" data-id="${h.id}" style="width:auto;margin:4px 0 0;flex-shrink:0;" onclick="event.stopPropagation()">
+      <div style="flex:1;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;">
+          <strong style="font-size:15px;">${icon} ${h.name}</strong>
+          <span style="color:#3a7;font-size:16px;">${sign}${h.amount}</span>
+        </div>
+        ${h.notes ? `<div style="color:#888;font-size:13px;margin-top:3px;">${h.notes}</div>` : ''}
+        <div style="color:#666;font-size:12px;margin-top:3px;">${t}<span style="color:${h.synced ? '#3a7' : '#c90'};margin-left:6px;">${syncMark}</span></div>
       </div>
-      ${h.notes ? `<div style="color:#888;font-size:13px;margin-top:3px;">${h.notes}</div>` : ''}
-      <div style="color:#666;font-size:12px;margin-top:3px;">${t}<span style="color:${h.synced ? '#3a7' : '#c90'};margin-left:6px;">${syncMark}</span></div>
     </div>`;
   }).join('');
 }
@@ -945,8 +1161,84 @@ document.getElementById('syncStatus').textContent = _lastSync ? 'Synced ' + _las
 renderDashboard();
 populateInjectionSelects();
 updateSyncBadge();
-// Silent background refresh if credentials exist
-setTimeout(() => refreshAssets(true), 600);
+// ===== MODAL =====
+function closeEdit() {
+  document.getElementById('editModal').style.display = 'none';
+}
+
+// ===== HISTORY DELETE =====
+// ===== SHARED MODULE: history delete — single, multiselect, clear all =====
+function toggleSelectAll(checked) {
+  document.querySelectorAll('.history-select').forEach(cb => cb.checked = checked);
+}
+
+function deleteSelected() {
+  const selected = [...document.querySelectorAll('.history-select:checked')].map(cb => cb.dataset.id);
+  if (!selected.length) return;
+  const modal   = document.getElementById('editModal');
+  const fields  = document.getElementById('editFields');
+  const saveBtn = document.getElementById('modalSaveBtn');
+  document.getElementById('editTitle').textContent = 'Delete Selected?';
+  fields.innerHTML = `
+    <p style="color:#ccc;">${selected.length} item${selected.length > 1 ? 's' : ''} will be removed from local history.</p>
+    <p style="color:#c66;">This cannot be undone.</p>
+  `;
+  saveBtn.textContent = '🗑️ Confirm Delete';
+  saveBtn.style.background = '#8b0000';
+  saveBtn.onclick = () => {
+    history = history.filter(h => !selected.includes(h.id));
+    pending = pending.filter(p => !selected.includes(p.id));
+    localStorage.setItem(LS.history, JSON.stringify(history));
+    localStorage.setItem(LS.pending, JSON.stringify(pending));
+    const sa = document.getElementById('selectAllHistory');
+    if (sa) sa.checked = false;
+    closeEdit();
+    renderHistory();
+    updateSyncBadge();
+  };
+  modal.style.display = 'block';
+}
+
+function clearHistory() {
+  const modal   = document.getElementById('editModal');
+  const fields  = document.getElementById('editFields');
+  const saveBtn = document.getElementById('modalSaveBtn');
+  const unsyncedCount = pending.filter(p => !p.synced).length;
+  document.getElementById('editTitle').textContent = 'Clear All History?';
+  fields.innerHTML = `
+    <p style="color:#c66;">All ${history.length} history entries will be deleted${unsyncedCount > 0 ? `, including ${unsyncedCount} unsynced item${unsyncedCount > 1 ? 's' : ''}` : ''}.</p>
+    <p style="color:#c66;">This cannot be undone.</p>
+  `;
+  saveBtn.textContent = '🗑️ Confirm Clear All';
+  saveBtn.style.background = '#8b0000';
+  saveBtn.onclick = () => {
+    history = [];
+    pending = [];
+    localStorage.setItem(LS.history, JSON.stringify(history));
+    localStorage.setItem(LS.pending, JSON.stringify(pending));
+    closeEdit();
+    renderHistory();
+    renderSettings();
+    updateSyncBadge();
+  };
+  modal.style.display = 'block';
+}
+
 </script>
+<!-- ===== CONFIRM MODAL ===== -->
+<div id="editModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:999;overflow-y:auto;">
+  <div style="background:#2a2a2a;margin:20px auto;max-width:480px;border-radius:10px;padding:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong id="editTitle" style="font-size:18px;">Confirm</strong>
+      <button onclick="closeEdit()" style="padding:6px 12px;margin:0;background:#555;">✕</button>
+    </div>
+    <div id="editFields"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button id="modalSaveBtn" style="flex:1;margin:0;">Confirm</button>
+      <button onclick="closeEdit()" class="secondary" style="flex:1;margin:0;">Cancel</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

@@ -12,7 +12,6 @@
 <style>
 * { box-sizing: border-box; }
 body { margin:0; font-family:sans-serif; background:#1a1a1a; color:#eee; font-size:18px; }
-
 header {
   background:#111;
   padding:12px 16px;
@@ -25,12 +24,9 @@ header {
   z-index:100;
 }
 header span { font-size:22px; font-weight:bold; color:#3a7; }
-
 .screen { display:none; padding:10px; padding-bottom:80px; }
 .screen.active { display:block; }
-
 .box { background:#2a2a2a; padding:14px; margin-bottom:10px; border-radius:8px; }
-
 button {
   display:inline-block;
   padding:20px 22px;
@@ -48,18 +44,15 @@ button.secondary { background:#555; }
 button.danger    { background:#8b0000; }
 button.wide      { width:calc(100% - 10px); display:block; }
 button.sm        { padding:10px 16px; font-size:15px; margin:3px; }
-
 label { display:block; margin-top:12px; color:#aaa; font-size:15px; }
 input, select, textarea {
   width:100%; padding:12px; margin-top:4px; font-size:18px;
   background:#333; color:#eee; border:1px solid #555; border-radius:6px;
 }
 input:focus, select:focus { outline:none; border-color:#3a7; }
-
 .good { background:#1b4d1e !important; border-left:4px solid #3a7; }
 .warn { background:#4d3b00 !important; border-left:4px solid #c90; }
 .bad  { background:#4d0000 !important; border-left:4px solid #c00; }
-
 /* Stock cards */
 .stock-card {
   background:#2a2a2a;
@@ -71,15 +64,13 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   gap:8px;
   border-left:4px solid #3a7;
 }
-.stock-card.low  { border-left-color:#c90; }
+.stock-card.low   { border-left-color:#c90; }
 .stock-card.empty { border-left-color:#c00; }
-
 .stock-card .item-info { flex:1; cursor:pointer; }
 .stock-card .item-name { font-weight:bold; font-size:16px; color:#eee; }
 .stock-card .item-qty  { font-size:14px; color:#3a7; margin-top:2px; }
-.stock-card.low  .item-qty { color:#c90; }
+.stock-card.low   .item-qty { color:#c90; }
 .stock-card.empty .item-qty { color:#c00; }
-
 .stock-card .adj-btn {
   padding:12px 18px;
   font-size:22px;
@@ -87,7 +78,6 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   min-width:48px;
   min-height:48px;
 }
-
 /* Category tabs */
 .cat-tabs { display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
 .cat-tab {
@@ -95,7 +85,6 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   background:#333; border-radius:20px;
 }
 .cat-tab.active { background:#3a7; }
-
 /* Bottom nav */
 .bottom-nav {
   position:fixed;
@@ -112,7 +101,6 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
 }
 .bottom-nav button.active { color:#3a7; border-bottom:2px solid #3a7; }
 .bottom-nav button:last-child { border-right:none; }
-
 /* Toast */
 #toast {
   position:fixed; bottom:70px; left:50%; transform:translateX(-50%);
@@ -120,7 +108,6 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   font-size:15px; z-index:9999; display:none;
   border:1px solid #3a7; max-width:90%; text-align:center;
 }
-
 /* Loading */
 #loading {
   position:fixed; top:0; left:0; width:100%; height:100%;
@@ -135,16 +122,19 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   animation:spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform:rotate(360deg); } }
-
 /* Action selector */
 .action-btn { flex:1; margin:0; padding:14px 6px; font-size:15px; background:#333; }
 .action-btn.active { background:#3a7; }
-
 #adjustAmount { text-align:center; font-size:28px; font-weight:bold; }
+/* Pending badge on nav */
+.pending-badge {
+  display:inline-block; background:#c90; color:#111;
+  border-radius:10px; font-size:11px; font-weight:bold;
+  padding:1px 6px; margin-left:3px; vertical-align:middle;
+}
 </style>
 </head>
 <body>
-
 <header>
   <div style="display:flex;align-items:center;gap:10px;">
     <img id="farmLogo" src="" alt="" style="height:40px;width:auto;display:none;border-radius:4px;">
@@ -152,7 +142,6 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   </div>
   <small id="syncStatus" style="color:#888;font-size:13px;">Offline</small>
 </header>
-
 <div id="loading"><div class="spinner"></div><p id="loadingMsg">Loading...</p></div>
 <div id="toast"></div>
 
@@ -164,7 +153,7 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
       <button class="cat-tab"        id="tab-Medical" onclick="setTab('Medical')">💉 Medical</button>
       <button class="cat-tab"        id="tab-Lab"     onclick="setTab('Lab')">🔬 Lab</button>
     </div>
-    <div id="stockList"><p style="color:#888;text-align:center;padding:20px;">Tap Refresh to load inventory.</p></div>
+    <div id="stockList"><p style="color:#888;text-align:center;padding:20px;">Tap Sync to load inventory.</p></div>
   </div>
 </div>
 
@@ -177,7 +166,6 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
     </div>
     <div id="currentStock" style="font-size:26px;color:#3a7;text-align:center;padding:8px 0;font-weight:bold;"></div>
   </div>
-
   <div class="box">
     <div style="display:flex;gap:6px;">
       <button id="btnRestock" class="action-btn" onclick="setAction('increment')">📥 Restock</button>
@@ -185,7 +173,6 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
       <button id="btnCount"   class="action-btn secondary" onclick="setAction('reset')">🔢 Count</button>
     </div>
   </div>
-
   <div class="box">
     <div style="display:flex;align-items:center;gap:8px;">
       <button onclick="stepAmount(-1)" style="padding:14px 22px;margin:0;font-size:26px;background:#555;">−</button>
@@ -196,7 +183,6 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
     <label>Notes (optional)</label>
     <input type="text" id="adjustNotes" placeholder="e.g. Received delivery, batch lot #">
   </div>
-
   <!-- Injection prompt — shown for injectable Medical items on Use -->
   <div class="box" id="injectionBox" style="display:none;">
     <strong>💉 Injection?</strong>
@@ -211,17 +197,28 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
       <select id="needleSelect"><option value="">-- select --</option></select>
     </div>
   </div>
-
-  <button onclick="confirmAdjust()" style="width:calc(100% - 10px);margin:5px;padding:22px;">✅ Confirm</button>
+  <button onclick="confirmAdjust()" style="width:calc(100% - 10px);margin:5px;padding:22px;">✅ Save Locally</button>
 </div>
 
 <!-- ===== HISTORY ===== -->
 <div id="screen-history" class="screen">
   <div class="box">
     <strong>Recent Adjustments</strong>
-    <p style="color:#888;font-size:13px;margin:4px 0 0;">Local log of adjustments made from this device.</p>
+    <p style="color:#888;font-size:13px;margin:4px 0 0;">Local log of adjustments. ⏳ = not yet synced to farmOS.</p>
   </div>
   <div id="historyList"></div>
+</div>
+
+<!-- ===== SYNC ===== -->
+<!-- ===== SHARED MODULE: farmOS sync screen =====  -->
+<div id="screen-sync" class="screen">
+  <div class="box">
+    <strong>🔄 FarmOS Sync</strong>
+    <p style="color:#888;font-size:13px;margin:4px 0 0;">Unsynced items: <span id="unsyncedCount">0</span></p>
+    <button onclick="syncToFarmOS()" style="width:calc(100% - 10px);margin-top:10px;">⬆️ Push to FarmOS</button>
+    <button onclick="refreshAssets()" class="secondary" style="width:calc(100% - 10px);">⬇️ Fetch Inventory</button>
+    <div id="syncLog" style="margin-top:10px;font-size:13px;color:#888;max-height:200px;overflow-y:auto;white-space:pre-wrap;"></div>
+  </div>
 </div>
 
 <!-- ===== SETTINGS ===== -->
@@ -237,7 +234,6 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
     <button onclick="saveAndTest()" style="width:calc(100% - 10px);margin-top:12px;">🔌 Save &amp; Connect</button>
     <div id="cfgResult" style="font-size:14px;color:#888;margin-top:6px;"></div>
   </div>
-
   <div class="box">
     <strong>Add New Item</strong>
     <label>Name</label>
@@ -255,17 +251,15 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
       <option value="ml|60c97ab7-0c9a-40cc-a05c-e9ccf6c80f82|volume">ml</option>
       <option value="lbs|830ff397-6d45-400a-a25a-d129d15229e2|weight">lbs</option>
     </select>
-    <button onclick="createItem()" style="width:calc(100% - 10px);margin-top:12px;">➕ Create Item</button>
+    <button onclick="queueCreateItem()" style="width:calc(100% - 10px);margin-top:12px;">➕ Create Item</button>
     <div id="newItemResult" style="font-size:14px;color:#888;margin-top:6px;"></div>
   </div>
-
   <div class="box">
     <strong>Low Stock Thresholds</strong>
     <p style="color:#888;font-size:13px;margin-top:4px;">Amber warning when stock hits or falls below this value. 0 = off.</p>
     <div id="thresholdList"></div>
     <button onclick="saveThresholds()" class="wide secondary" style="margin-top:10px;">💾 Save Thresholds</button>
   </div>
-
   <div class="box">
     <button onclick="doLogout()" class="wide danger">🚪 Log Out</button>
   </div>
@@ -275,7 +269,7 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
 <nav class="bottom-nav">
   <button id="nav-dashboard" class="active" onclick="show('dashboard')">🏠<br>Stock</button>
   <button id="nav-history"                  onclick="show('history')">📋<br>History</button>
-  <button                                   onclick="refreshAssets()">🔄<br>Refresh</button>
+  <button id="nav-sync"                     onclick="show('sync')">🔄<br>Sync<span id="syncBadge" class="pending-badge" style="display:none;"></span></button>
   <button id="nav-settings"                 onclick="show('settings')">⚙️<br>Settings</button>
 </nav>
 
@@ -286,7 +280,8 @@ const LS = {
   assets:     'farmdesk_stock_assets',
   history:    'farmdesk_stock_history',
   lastSync:   'farmdesk_stock_lastsync',
-  thresholds: 'farmdesk_stock_thresholds'
+  thresholds: 'farmdesk_stock_thresholds',
+  pending:    'farmdesk_stock_pending'   // local-first queue
 };
 
 // ===== SHARED MODULE: farmOS taxonomy UUIDs =====
@@ -296,7 +291,6 @@ const UNIT_MAP = {
   ml:    { uuid: '60c97ab7-0c9a-40cc-a05c-e9ccf6c80f82', measure: 'volume', label: 'ml'    },
   lbs:   { uuid: '830ff397-6d45-400a-a25a-d129d15229e2', measure: 'weight', label: 'lbs'   }
 };
-
 const MAT_TYPE_NAME = {
   'e5e7b94d-d8b3-4c78-8554-097edc968208': 'Feed',
   'eb01f4d2-7dbf-46af-b2ff-426575eff635': 'Medical',
@@ -319,7 +313,8 @@ const INJECTABLE_KEYWORDS = ['super b', 'cdt', 'ivermectin', 'bactrim', 'penicil
 let assets     = JSON.parse(localStorage.getItem(LS.assets)     || '[]');
 let history    = JSON.parse(localStorage.getItem(LS.history)    || '[]');
 let thresholds = JSON.parse(localStorage.getItem(LS.thresholds) || '{}');
-let currentTab = 'Feed';
+let pending    = JSON.parse(localStorage.getItem(LS.pending)    || '[]');
+let currentTab   = 'Feed';
 let adjustAsset  = null;
 let adjustAction = 'increment';
 
@@ -336,6 +331,7 @@ function show(id) {
   if (navBtn) navBtn.classList.add('active');
   if (id === 'history')  renderHistory();
   if (id === 'settings') renderSettings();
+  if (id === 'sync')     renderSyncScreen();
 }
 
 // ===== TOAST =====
@@ -354,6 +350,18 @@ function setLoading(on, msg) {
   const el = document.getElementById('loading');
   if (on) { el.classList.add('show'); if (msg) document.getElementById('loadingMsg').textContent = msg; }
   else     { el.classList.remove('show'); }
+}
+
+// ===== PENDING BADGE =====
+function updateSyncBadge() {
+  const count = pending.filter(p => !p.synced).length;
+  const badge = document.getElementById('syncBadge');
+  if (count > 0) {
+    badge.textContent = count;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
 // ===== SHARED MODULE: OAuth2 authentication =====
@@ -387,7 +395,6 @@ function apiUrl(path) {
   const cfg = JSON.parse(localStorage.getItem(LS.cfg) || '{}');
   return window._useProxy ? '/proxy' + path : (cfg.url || '') + path;
 }
-
 function apiHeaders(token) {
   return {
     'Authorization': 'Bearer ' + token,
@@ -396,7 +403,7 @@ function apiHeaders(token) {
   };
 }
 
-// ===== ASSET FETCH =====
+// ===== ASSET FETCH — pulls live inventory from farmOS =====
 async function refreshAssets(silent) {
   const cfg = JSON.parse(localStorage.getItem(LS.cfg) || '{}');
   if (!cfg.url || !cfg.user || !cfg.pass) {
@@ -417,20 +424,19 @@ async function refreshAssets(silent) {
       url = d.links?.next?.href || null;
     }
     assets = all.map(a => {
-      const inv   = (a.attributes.inventory || [])[0] || {};
-      const matId = a.relationships?.material_type?.data?.id || '';
-      const name  = a.attributes.name || '';
+      const inv    = (a.attributes.inventory || [])[0] || {};
+      const matId  = a.relationships?.material_type?.data?.id || '';
+      const name   = a.attributes.name || '';
       const measure = inv.measure || guessMeasure(name);
-      const unitId  = inv.units ? null : guessUnitId(name, measure);
       return {
-        uuid:     a.id,
+        uuid:      a.id,
         name,
-        category: MAT_TYPE_NAME[matId] || 'Other',
+        category:  MAT_TYPE_NAME[matId] || 'Other',
         matTypeId: matId,
         measure,
-        value:    parseFloat(inv.value) || 0,
-        units:    inv.units || unitLabel_(name, measure),
-        unitId:   unitId || guessUnitId(name, measure)
+        value:     parseFloat(inv.value) || 0,
+        units:     inv.units || unitLabel_(name, measure),
+        unitId:    guessUnitId(name, measure)
       };
     });
     buildInjectionMaps();
@@ -452,10 +458,9 @@ function guessMeasure(name) {
   if (n.includes(' ml') || n.includes('vaccine') || n.includes('solution') ||
       n.includes('complex') || n.includes('ivermectin') || n.includes('cdt') ||
       n.includes('bactrim')) return 'volume';
-  if (n.includes('lbs') || n.includes('grain'))  return 'weight';
+  if (n.includes('lbs') || n.includes('grain')) return 'weight';
   return 'count';
 }
-
 function guessUnitId(name, measure) {
   const n = name.toLowerCase();
   if (n.includes('hay') || n.includes('bale')) return UNIT_MAP.bales.uuid;
@@ -463,7 +468,6 @@ function guessUnitId(name, measure) {
   if (measure === 'weight') return UNIT_MAP.lbs.uuid;
   return UNIT_MAP.count.uuid;
 }
-
 function unitLabel_(name, measure) {
   const n = name.toLowerCase();
   if (n.includes('hay') || n.includes('bale')) return 'bales';
@@ -471,20 +475,16 @@ function unitLabel_(name, measure) {
   if (measure === 'weight') return 'lbs';
   return '';
 }
-
 function buildInjectionMaps() {
   syringeMap = {};
   needleMap  = {};
   assets.forEach(a => {
     const n = a.name.toLowerCase();
-    // Match "Syringe Luer Lock Xml" → key "syringe-luer-lock-xml"
     if (n.includes('luer lock')) syringeMap[n.replace(/\s+/g, '-')] = a.uuid;
-    // Match "Needle XYG" → key "needle-xyg"
-    if (n.startsWith('needle ')) needleMap[n.replace(/\s+/g, '-')] = a.uuid;
+    if (n.startsWith('needle ')) needleMap[n.replace(/\s+/g, '-')]  = a.uuid;
   });
   populateInjectionSelects();
 }
-
 function populateInjectionSelects() {
   const sEl = document.getElementById('syringeSelect');
   const nEl = document.getElementById('needleSelect');
@@ -511,7 +511,7 @@ function renderDashboard() {
   const list  = document.getElementById('stockList');
   const items = assets.filter(a => a.category === currentTab).sort((a,b) => a.name.localeCompare(b.name));
   if (!items.length) {
-    list.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">No items — tap Refresh or add in Settings.</p>';
+    list.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">No items — tap Sync to fetch, or add in Settings.</p>';
     return;
   }
   list.innerHTML = items.map(a => {
@@ -529,14 +529,13 @@ function renderDashboard() {
   }).join('');
 }
 
-// ===== QUICK ADJUST (dashboard +/-1) =====
-async function quickAdj(uuid, delta) {
+// ===== QUICK ADJUST (dashboard +/-1) — local only =====
+function quickAdj(uuid, delta) {
   const a = assets.find(x => x.uuid === uuid);
   if (!a) return;
-  try {
-    await doAdjust(a, delta > 0 ? 'increment' : 'decrement', Math.abs(delta), '');
-    renderDashboard();
-  } catch(e) { toast('❌ ' + e.message, '#c00'); }
+  doAdjust(a, delta > 0 ? 'increment' : 'decrement', Math.abs(delta), '');
+  renderDashboard();
+  updateSyncBadge();
 }
 
 // ===== OPEN ADJUST SCREEN =====
@@ -549,22 +548,19 @@ function openAdjust(uuid) {
   document.getElementById('adjustNotes').value = '';
   document.getElementById('isInjection').checked = false;
   document.getElementById('injectionFields').style.display = 'none';
-  // Show injection box only for injectable Medical liquids
-  const isMedLiquid   = adjustAsset.category === 'Medical' && adjustAsset.measure === 'volume';
-  const isInjectable  = INJECTABLE_KEYWORDS.some(k => adjustAsset.name.toLowerCase().includes(k));
+  const isMedLiquid  = adjustAsset.category === 'Medical' && adjustAsset.measure === 'volume';
+  const isInjectable = INJECTABLE_KEYWORDS.some(k => adjustAsset.name.toLowerCase().includes(k));
   document.getElementById('injectionBox').style.display = (isMedLiquid && isInjectable) ? '' : 'none';
   renderQuickAmounts();
   show('adjust');
-  document.getElementById('nav-dashboard').classList.add('active'); // keep dashboard nav lit
+  document.getElementById('nav-dashboard').classList.add('active');
 }
-
 function updateStockDisplay() {
   if (!adjustAsset) return;
   const ul = adjustAsset.units;
   document.getElementById('currentStock').textContent =
     adjustAsset.value + (ul ? ' ' + ul : '') + ' on hand';
 }
-
 function renderQuickAmounts() {
   const n = adjustAsset.name.toLowerCase();
   let qtys;
@@ -574,7 +570,6 @@ function renderQuickAmounts() {
   document.getElementById('quickAmounts').innerHTML =
     qtys.map(q => `<button class="secondary sm" onclick="setAmount(${q})">${q}</button>`).join('');
 }
-
 function setAction(action) {
   adjustAction = action;
   const map = { increment: 'btnRestock', decrement: 'btnUse', reset: 'btnCount' };
@@ -585,21 +580,18 @@ function setAction(action) {
   document.getElementById('adjustAmount').value =
     action === 'reset' ? (adjustAsset?.value || 0) : 1;
 }
-
 function stepAmount(d) {
   const el = document.getElementById('adjustAmount');
   el.value = Math.max(0, (parseFloat(el.value) || 0) + d);
 }
-
 function setAmount(v) { document.getElementById('adjustAmount').value = v; }
-
 function toggleInjection() {
   document.getElementById('injectionFields').style.display =
     document.getElementById('isInjection').checked ? '' : 'none';
 }
 
-// ===== CONFIRM ADJUST =====
-async function confirmAdjust() {
+// ===== CONFIRM ADJUST — saves locally, no network =====
+function confirmAdjust() {
   const amount = parseFloat(document.getElementById('adjustAmount').value);
   if (isNaN(amount) || (amount <= 0 && adjustAction !== 'reset')) {
     toast('Enter a valid amount', '#c90'); return;
@@ -619,84 +611,20 @@ async function confirmAdjust() {
       if (na) adjustments.push({ asset: na, action: 'decrement', amount: 1 });
     }
   }
-  setLoading(true, 'Saving to farmOS...');
-  try {
-    for (const adj of adjustments) {
-      await doAdjust(adj.asset, adj.action, adj.amount, notes);
-    }
-    setLoading(false);
-    toast('✅ Saved');
-    renderDashboard();
-    show('dashboard');
-  } catch(e) {
-    setLoading(false);
-    toast('❌ ' + e.message, '#c00');
+  for (const adj of adjustments) {
+    doAdjust(adj.asset, adj.action, adj.amount, notes);
   }
+  toast('✅ Saved locally');
+  renderDashboard();
+  updateSyncBadge();
+  show('dashboard');
 }
 
-// ===== CORE INVENTORY ADJUSTMENT =====
-// ===== SHARED MODULE: doAdjust — called by StockDesk UI and GoatDesk med integration =====
+// ===== CORE LOCAL ADJUST =====
+// ===== SHARED MODULE: doAdjust — writes to local pending queue, no network call =====
 // action: 'increment' | 'decrement' | 'reset'
-// asset: { uuid, name, measure, unitId }
-async function doAdjust(asset, action, amount, notes) {
-  const cfg = JSON.parse(localStorage.getItem(LS.cfg) || '{}');
-  if (!cfg.url) throw new Error('farmOS not configured');
-  const token = await getToken(cfg);
-  const h = apiHeaders(token);
-  // Fraction encoding: avoid decimals where possible
-  const num = Number.isInteger(amount) ? String(amount) : String(Math.round(amount * 100));
-  const den = Number.isInteger(amount) ? '1' : '100';
-  // Step 1: POST quantity
-  const qBody = {
-    data: {
-      type: 'quantity--standard',
-      attributes: {
-        measure: asset.measure || 'count',
-        value: { numerator: num, denominator: den },
-        inventory_adjustment: action,
-        ...(notes ? { label: notes } : {})
-      },
-      relationships: {
-        inventory_asset: { data: { type: 'asset--material', id: asset.uuid } },
-        ...(asset.unitId ? { units: { data: { type: 'taxonomy_term--unit', id: asset.unitId } } } : {})
-      }
-    }
-  };
-  const qRes = await fetch(apiUrl('/api/quantity/standard'), {
-    method: 'POST', headers: h, body: JSON.stringify(qBody)
-  });
-  if (!qRes.ok) {
-    const e = await qRes.json().catch(() => ({}));
-    throw new Error('Quantity: ' + (e.errors?.[0]?.detail || qRes.status));
-  }
-  const qData  = await qRes.json();
-  const qUUID  = qData.data.id;
-  const qRevId = qData.data.attributes?.drupal_internal__revision_id;
-  // Step 2: POST log
-  const logBundle = action === 'increment' ? 'input' : (action === 'decrement' ? 'output' : 'observation');
-  const logBody = {
-    data: {
-      type: 'log--' + logBundle,
-      attributes: {
-        name: 'Stock ' + action + ': ' + asset.name,
-        timestamp: String(Math.floor(Date.now() / 1000)),
-        status: 'done',
-        ...(notes ? { notes: { value: notes, format: 'default' } } : {})
-      },
-      relationships: {
-        asset:    { data: [{ type: 'asset--material', id: asset.uuid }] },
-        quantity: { data: [{ type: 'quantity--standard', id: qUUID, meta: { target_revision_id: qRevId } }] }
-      }
-    }
-  };
-  const lRes = await fetch(apiUrl('/api/log/' + logBundle), {
-    method: 'POST', headers: h, body: JSON.stringify(logBody)
-  });
-  if (!lRes.ok) {
-    const e = await lRes.json().catch(() => ({}));
-    throw new Error('Log: ' + (e.errors?.[0]?.detail || lRes.status));
-  }
-  // Update local cache
+function doAdjust(asset, action, amount, notes) {
+  // Update local cache immediately
   const cached = assets.find(x => x.uuid === asset.uuid);
   if (cached) {
     if      (action === 'increment') cached.value += amount;
@@ -704,62 +632,216 @@ async function doAdjust(asset, action, amount, notes) {
     else                             cached.value  = amount;
     localStorage.setItem(LS.assets, JSON.stringify(assets));
   }
-  // Local history entry
-  history.unshift({ id: qUUID, name: asset.name, action, amount, notes, time: new Date().toISOString() });
+  // Queue for sync
+  const entry = {
+    id:        Date.now() + Math.random().toString(36).slice(2),
+    type:      'adjust',
+    uuid:      asset.uuid,
+    name:      asset.name,
+    measure:   asset.measure || 'count',
+    unitId:    asset.unitId,
+    action,
+    amount,
+    notes,
+    timestamp: String(Math.floor(Date.now() / 1000)),
+    synced:    false
+  };
+  pending.push(entry);
+  localStorage.setItem(LS.pending, JSON.stringify(pending));
+  // Local history
+  history.unshift({ id: entry.id, name: asset.name, action, amount, notes, time: new Date().toISOString(), synced: false });
   if (history.length > 100) history = history.slice(0, 100);
   localStorage.setItem(LS.history, JSON.stringify(history));
 }
 
-// ===== CREATE NEW ITEM =====
-async function createItem() {
+// ===== QUEUE ITEM CREATION =====
+function queueCreateItem() {
   const name = document.getElementById('newItemName').value.trim();
   if (!name) { toast('Enter item name', '#c90'); return; }
-  const matTypeId  = document.getElementById('newItemCat').value;
-  const unitParts  = document.getElementById('newItemUnit').value.split('|');
+  const matTypeId   = document.getElementById('newItemCat').value;
+  const unitParts   = document.getElementById('newItemUnit').value.split('|');
   const unitLabel__ = unitParts[0];
-  const unitUUID   = unitParts[1];
-  const measure    = unitParts[2];
+  const unitUUID    = unitParts[1];
+  const measure     = unitParts[2];
+  // Add to local asset list immediately so it shows on dashboard
+  const tempId = 'local_' + Date.now();
+  assets.push({
+    uuid:      tempId,
+    name,
+    category:  MAT_TYPE_NAME[matTypeId] || 'Other',
+    matTypeId,
+    measure,
+    value:     0,
+    units:     unitLabel__,
+    unitId:    unitUUID,
+    localOnly: true
+  });
+  localStorage.setItem(LS.assets, JSON.stringify(assets));
+  buildInjectionMaps();
+  // Queue creation for sync
+  const entry = {
+    id:         tempId,
+    type:       'create',
+    tempId,
+    name,
+    matTypeId,
+    unitLabel:  unitLabel__,
+    unitUUID,
+    measure,
+    synced:     false
+  };
+  pending.push(entry);
+  localStorage.setItem(LS.pending, JSON.stringify(pending));
+  document.getElementById('newItemName').value = '';
+  const el = document.getElementById('newItemResult');
+  el.textContent = '✅ Added locally — push to sync'; el.style.color = '#c90';
+  updateSyncBadge();
+  renderThresholdList();
+  renderDashboard();
+}
+
+// ===== SYNC SCREEN =====
+function renderSyncScreen() {
+  const count = pending.filter(p => !p.synced).length;
+  document.getElementById('unsyncedCount').textContent = count;
+  document.getElementById('syncLog').textContent = '';
+}
+
+// ===== PUSH TO FARMOS =====
+// ===== SHARED MODULE: syncToFarmOS — pushes pending queue to farmOS =====
+async function syncToFarmOS() {
   const cfg = JSON.parse(localStorage.getItem(LS.cfg) || '{}');
-  if (!cfg.url) { toast('Connect to farmOS first', '#c90'); return; }
-  setLoading(true, 'Creating item...');
-  try {
-    const token = await getToken(cfg);
-    const h = apiHeaders(token);
-    const payload = {
-      data: {
-        type: 'asset--material',
-        attributes: { name },
-        relationships: {
-          material_type: { data: { type: 'taxonomy_term--material_type', id: matTypeId } },
-          owner:         { data: ALL_OWNERS.map(id => ({ type: 'user--user', id })) }
-        }
-      }
-    };
-    const res = await fetch(apiUrl('/api/asset/material'), {
-      method: 'POST', headers: h, body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(e.errors?.[0]?.detail || res.status);
-    }
-    const d = await res.json();
-    assets.push({
-      uuid: d.data.id, name,
-      category: MAT_TYPE_NAME[matTypeId] || 'Other',
-      matTypeId, measure, value: 0, units: unitLabel__, unitId: unitUUID
-    });
-    localStorage.setItem(LS.assets, JSON.stringify(assets));
-    buildInjectionMaps();
-    document.getElementById('newItemName').value = '';
-    const el = document.getElementById('newItemResult');
-    el.textContent = '✅ Created: ' + name; el.style.color = '#3a7';
-    setLoading(false);
-    renderThresholdList();
-  } catch(e) {
-    setLoading(false);
-    const el = document.getElementById('newItemResult');
-    el.textContent = '❌ ' + e.message; el.style.color = '#c00';
+  if (!cfg.url || !cfg.user || !cfg.pass) {
+    toast('Configure farmOS in Settings first', '#c90');
+    show('settings');
+    return;
   }
+  const logEl = document.getElementById('syncLog');
+  logEl.textContent = 'Authenticating...\n';
+  let token;
+  try {
+    token = await getToken(cfg);
+    logEl.textContent += '✅ Token OK\n';
+  } catch(e) {
+    logEl.textContent += '❌ Auth failed: ' + e.message + '\n';
+    return;
+  }
+  const unsynced = pending.filter(p => !p.synced);
+  if (!unsynced.length) {
+    logEl.textContent += 'Nothing to push.\n';
+    return;
+  }
+  const h = apiHeaders(token);
+  let ok = 0, fail = 0;
+  for (const item of unsynced) {
+    try {
+      if (item.type === 'create') {
+        // POST asset creation — farmOS assigns UUID
+        const payload = {
+          data: {
+            type: 'asset--material',
+            attributes: { name: item.name },
+            relationships: {
+              material_type: { data: { type: 'taxonomy_term--material_type', id: item.matTypeId } },
+              owner:         { data: ALL_OWNERS.map(id => ({ type: 'user--user', id })) }
+            }
+          }
+        };
+        const res = await fetch(apiUrl('/api/asset/material'), {
+          method: 'POST', headers: h, body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}));
+          throw new Error(e.errors?.[0]?.detail || res.status);
+        }
+        const d = await res.json();
+        const realUUID = d.data.id;
+        // Update local asset entry: replace tempId with real UUID
+        const localAsset = assets.find(a => a.uuid === item.tempId);
+        if (localAsset) {
+          localAsset.uuid      = realUUID;
+          localAsset.localOnly = false;
+          localStorage.setItem(LS.assets, JSON.stringify(assets));
+        }
+        // Also update any queued adjustments for this tempId
+        pending.forEach(p => { if (p.uuid === item.tempId) p.uuid = realUUID; });
+        item.synced = true;
+        ok++;
+        logEl.textContent += '✅ Created: ' + item.name + '\n';
+      } else if (item.type === 'adjust') {
+        // POST quantity then log — same pattern as original doAdjust
+        const num = Number.isInteger(item.amount) ? String(item.amount) : String(Math.round(item.amount * 100));
+        const den = Number.isInteger(item.amount) ? '1' : '100';
+        const qBody = {
+          data: {
+            type: 'quantity--standard',
+            attributes: {
+              measure:              item.measure || 'count',
+              value:                { numerator: num, denominator: den },
+              inventory_adjustment: item.action,
+              ...(item.notes ? { label: item.notes } : {})
+            },
+            relationships: {
+              inventory_asset: { data: { type: 'asset--material', id: item.uuid } },
+              ...(item.unitId ? { units: { data: { type: 'taxonomy_term--unit', id: item.unitId } } } : {})
+            }
+          }
+        };
+        const qRes = await fetch(apiUrl('/api/quantity/standard'), {
+          method: 'POST', headers: h, body: JSON.stringify(qBody)
+        });
+        if (!qRes.ok) {
+          const e = await qRes.json().catch(() => ({}));
+          throw new Error('Quantity: ' + (e.errors?.[0]?.detail || qRes.status));
+        }
+        const qData  = await qRes.json();
+        const qUUID  = qData.data.id;
+        const qRevId = qData.data.attributes?.drupal_internal__revision_id;
+        const logBundle = item.action === 'increment' ? 'input' : (item.action === 'decrement' ? 'output' : 'observation');
+        const lBody = {
+          data: {
+            type: 'log--' + logBundle,
+            attributes: {
+              name:      'Stock ' + item.action + ': ' + item.name,
+              timestamp: item.timestamp,
+              status:    'done',
+              ...(item.notes ? { notes: { value: item.notes, format: 'default' } } : {})
+            },
+            relationships: {
+              asset:    { data: [{ type: 'asset--material', id: item.uuid }] },
+              quantity: { data: [{ type: 'quantity--standard', id: qUUID, meta: { target_revision_id: qRevId } }] }
+            }
+          }
+        };
+        const lRes = await fetch(apiUrl('/api/log/' + logBundle), {
+          method: 'POST', headers: h, body: JSON.stringify(lBody)
+        });
+        if (!lRes.ok) {
+          const e = await lRes.json().catch(() => ({}));
+          throw new Error('Log: ' + (e.errors?.[0]?.detail || lRes.status));
+        }
+        // Mark synced in history
+        const hEntry = history.find(h => h.id === item.id);
+        if (hEntry) { hEntry.synced = true; }
+        item.synced = true;
+        ok++;
+        const icon = item.action === 'increment' ? '📥' : (item.action === 'decrement' ? '📤' : '🔢');
+        logEl.textContent += `✅ ${icon} ${item.name} ${item.action === 'reset' ? '=' : (item.action === 'increment' ? '+' : '−')}${item.amount}\n`;
+      }
+    } catch(e) {
+      fail++;
+      logEl.textContent += `❌ ${item.name} — ${e.message}\n`;
+    }
+  }
+  localStorage.setItem(LS.pending, JSON.stringify(pending));
+  localStorage.setItem(LS.history, JSON.stringify(history));
+  const now = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  localStorage.setItem(LS.lastSync, now);
+  document.getElementById('syncStatus').textContent = 'Synced ' + now;
+  logEl.textContent += `\nPushed: ${ok} ok, ${fail} failed.\n`;
+  document.getElementById('unsyncedCount').textContent = pending.filter(p => !p.synced).length;
+  updateSyncBadge();
+  logEl.scrollTop = logEl.scrollHeight;
 }
 
 // ===== SETTINGS =====
@@ -770,11 +852,10 @@ function renderSettings() {
   if (cfg.pass) document.getElementById('cfgPass').value = cfg.pass;
   renderThresholdList();
 }
-
 function renderThresholdList() {
   const list = document.getElementById('thresholdList');
   if (!assets.length) {
-    list.innerHTML = '<p style="color:#888;font-size:13px;">Connect and refresh to see items.</p>';
+    list.innerHTML = '<p style="color:#888;font-size:13px;">Connect and sync to see items.</p>';
     return;
   }
   list.innerHTML = assets.sort((a,b) => a.name.localeCompare(b.name)).map(a => `
@@ -784,7 +865,6 @@ function renderThresholdList() {
         id="thresh_${a.uuid}" style="width:80px;padding:8px;font-size:15px;">
     </div>`).join('');
 }
-
 function saveThresholds() {
   assets.forEach(a => {
     const el = document.getElementById('thresh_' + a.uuid);
@@ -794,7 +874,6 @@ function saveThresholds() {
   toast('✅ Thresholds saved');
   renderDashboard();
 }
-
 async function saveAndTest() {
   const url  = document.getElementById('cfgUrl').value.trim().replace(/\/$/, '');
   const user = document.getElementById('cfgUser').value.trim();
@@ -810,7 +889,6 @@ async function saveAndTest() {
       let name = url;
       try { const d = await res.json(); name = d?.meta?.farm?.name || url; } catch(e) {}
       el.textContent = '✅ Connected: ' + name; el.style.color = '#3a7';
-      await refreshAssets();
     } else {
       el.textContent = '❌ API error ' + res.status; el.style.color = '#c00';
     }
@@ -818,12 +896,12 @@ async function saveAndTest() {
     el.textContent = '❌ ' + e.message; el.style.color = '#c00';
   }
 }
-
 function doLogout() {
-  if (!confirm('Log out? Cached inventory will be cleared.')) return;
+  if (!confirm('Log out? Cached inventory will be cleared. Unsynced items will be lost.')) return;
   localStorage.removeItem(LS.cfg);
   localStorage.removeItem(LS.assets);
   localStorage.removeItem(LS.lastSync);
+  // Keep pending so user can reconnect and push — only clear if they confirm
   assets = [];
   document.getElementById('syncStatus').textContent = 'Offline';
   renderDashboard();
@@ -839,16 +917,17 @@ function renderHistory() {
     return;
   }
   list.innerHTML = history.slice(0, 50).map(h => {
-    const icon = h.action === 'increment' ? '📥' : (h.action === 'decrement' ? '📤' : '🔢');
-    const sign = h.action === 'increment' ? '+' : (h.action === 'decrement' ? '−' : '=');
-    const t    = new Date(h.time).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    const icon     = h.action === 'increment' ? '📥' : (h.action === 'decrement' ? '📤' : '🔢');
+    const sign     = h.action === 'increment' ? '+' : (h.action === 'decrement' ? '−' : '=');
+    const syncMark = h.synced ? ' ✓' : ' ⏳';
+    const t        = new Date(h.time).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
     return `<div class="box">
       <div style="display:flex;justify-content:space-between;align-items:baseline;">
         <strong style="font-size:15px;">${icon} ${h.name}</strong>
         <span style="color:#3a7;font-size:16px;">${sign}${h.amount}</span>
       </div>
       ${h.notes ? `<div style="color:#888;font-size:13px;margin-top:3px;">${h.notes}</div>` : ''}
-      <div style="color:#666;font-size:12px;margin-top:3px;">${t}</div>
+      <div style="color:#666;font-size:12px;margin-top:3px;">${t}<span style="color:${h.synced ? '#3a7' : '#c90'};margin-left:6px;">${syncMark}</span></div>
     </div>`;
   }).join('');
 }
@@ -865,6 +944,8 @@ const _lastSync = localStorage.getItem(LS.lastSync);
 document.getElementById('syncStatus').textContent = _lastSync ? 'Synced ' + _lastSync : 'Offline';
 renderDashboard();
 populateInjectionSelects();
+updateSyncBadge();
+// Silent background refresh if credentials exist
 setTimeout(() => refreshAssets(true), 600);
 </script>
 </body>

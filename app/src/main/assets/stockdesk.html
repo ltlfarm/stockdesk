@@ -101,13 +101,6 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
 }
 .bottom-nav button.active { color:#3a7; border-bottom:2px solid #3a7; }
 .bottom-nav button:last-child { border-right:none; }
-/* Toast */
-#toast {
-  position:fixed; bottom:70px; left:50%; transform:translateX(-50%);
-  background:#2a2a2a; color:#eee; padding:12px 20px; border-radius:8px;
-  font-size:15px; z-index:9999; display:none;
-  border:1px solid #3a7; max-width:90%; text-align:center;
-}
 /* Loading */
 #loading {
   position:fixed; top:0; left:0; width:100%; height:100%;
@@ -157,7 +150,6 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   <small id="syncStatus" style="color:#888;font-size:13px;">Offline</small>
 </header>
 <div id="loading"><div class="spinner"></div><p id="loadingMsg">Loading...</p></div>
-<div id="toast"></div>
 
 <!-- ===== DASHBOARD ===== -->
 <div id="screen-dashboard" class="screen active">
@@ -195,12 +187,18 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
       <button onclick="stepAmount(1)"  style="padding:14px 22px;margin:0;font-size:26px;">+</button>
     </div>
     <div id="quickAmounts" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;"></div>
+    <label>Date &amp; Time</label>
+    <input type="datetime-local" id="adjustTimestamp" style="width:100%;padding:12px;margin-top:4px;font-size:16px;background:#333;color:#eee;border:1px solid #555;border-radius:6px;">
     <label>Notes (optional)</label>
-    <input type="text" id="adjustNotes" placeholder="e.g. Received delivery, batch lot #" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();const pb=document.getElementById('priceBox');if(pb&&pb.style.display!=='none'){document.getElementById('priceUnit').focus();}else{confirmAdjust();}}">
+    <input type="text" id="adjustNotes" placeholder="e.g. Received delivery, batch lot #" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();const pb=document.getElementById('priceBox');if(pb&&pb.style.display!=='none'){document.getElementById('restockSeller').focus();}else{confirmAdjust();}}">
   </div>
   <!-- Price box — shown on Restock only -->
   <div class="box" id="priceBox" style="display:none;">
-    <strong>💰 Cost (optional)</strong>
+    <strong>💰 Restock Details</strong>
+    <label>Seller (optional)</label>
+    <input type="text" id="restockSeller" placeholder="e.g. Feed store, supplier name" enterkeyhint="next" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('restockLot').focus();}">
+    <label>Lot Number (optional)</label>
+    <input type="text" id="restockLot" placeholder="e.g. Lot #, batch #" enterkeyhint="next" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('priceUnit').focus();}">
     <div style="display:flex;gap:6px;margin-top:10px;">
       <button id="btnEach" class="action-btn" onclick="setPriceType('each')">Each</button>
       <button id="btnLot"  class="action-btn secondary" onclick="setPriceType('lot')">Lot</button>
@@ -325,7 +323,7 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
 <script>
 // ===== SHARED MODULE: localStorage keys (farmdesk_ prefix) =====
 const LS = {
-  cfg:        'farmdesk_stock_cfg',
+  cfg:        'farmdesk_cfg',
   assets:     'farmdesk_stock_assets',
   adjHistory:    'farmdesk_stock_history',
   lastSync:   'farmdesk_stock_lastsync',
@@ -390,15 +388,19 @@ function show(id) {
   if (id === 'sync')     renderSyncScreen();
 }
 
-// ===== TOAST =====
-let _toastTimer;
-function toast(msg, color) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.style.borderColor = color || '#3a7';
-  el.style.display = 'block';
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => { el.style.display = 'none'; }, 3000);
+// ===== SHARED MODULE: toast =====
+function showToast(msg) {
+  let toast = document.getElementById('appToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'appToast';
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;z-index:9998;opacity:0;transition:opacity 0.3s;pointer-events:none;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
 }
 
 // ===== LOADING =====
@@ -463,7 +465,7 @@ function apiHeaders(token) {
 async function refreshAssets(silent) {
   const cfg = JSON.parse(localStorage.getItem(LS.cfg) || '{}');
   if (!cfg.url || !cfg.user || !cfg.pass) {
-    if (!silent) { show('settings'); toast('Configure farmOS first', '#c90'); }
+    if (!silent) { show('settings'); showToast('Configure farmOS first'); }
     return;
   }
   if (!silent) setLoading(true, 'Fetching inventory...');
@@ -506,9 +508,9 @@ async function refreshAssets(silent) {
     localStorage.setItem(LS.lastSync, now);
     document.getElementById('syncStatus').textContent = 'Synced ' + now;
     renderDashboard();
-    if (!silent) { setLoading(false); toast('✅ Inventory refreshed'); }
+    if (!silent) { setLoading(false); showToast('✅ Inventory refreshed'); }
   } catch(e) {
-    if (!silent) { setLoading(false); toast('❌ ' + e.message, '#c00'); }
+    if (!silent) { setLoading(false); showToast('❌ ' + e.message); }
     document.getElementById('syncStatus').textContent = 'Offline';
   }
 }
@@ -630,6 +632,7 @@ function openAdjust(uuid) {
   document.getElementById('adjustTitle').textContent = adjustAsset.name;
   updateStockDisplay();
   setAction('increment');
+  initTimestamp();
   document.getElementById('adjustNotes').value = '';
   document.getElementById('isInjection').checked = false;
   document.getElementById('injectionFields').style.display = 'none';
@@ -644,6 +647,8 @@ function openAdjust(uuid) {
   // Price reset
   document.getElementById('priceUnit').value = '';
   document.getElementById('costTotal').textContent = '';
+  document.getElementById('restockSeller').value = '';
+  document.getElementById('restockLot').value = '';
   setPriceType('each');
   // Photo — load existing asset photo if present
   currentPhoto = adjustAsset.photo || null;
@@ -668,6 +673,23 @@ function updateStockDisplay() {
   const ul = adjustAsset.units;
   document.getElementById('currentStock').textContent =
     adjustAsset.value + (ul ? ' ' + ul : '') + ' on hand';
+}
+
+// ===== SHARED MODULE: timestamp helpers — matches GoatDesk pattern =====
+function initTimestamp() {
+  const now   = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  document.getElementById('adjustTimestamp').value = local.toISOString().slice(0, 16);
+}
+// Returns Unix integer string for farmOS
+function getTimestamp() {
+  const v = document.getElementById('adjustTimestamp').value;
+  const base = v ? new Date(v) : new Date();
+  // Preserve seconds from now so same-minute entries sort by entry order
+  const now = new Date();
+  base.setSeconds(now.getSeconds());
+  base.setMilliseconds(now.getMilliseconds());
+  return String(Math.floor(base.getTime() / 1000));
 }
 function renderQuickAmounts() {
   const n = adjustAsset.name.toLowerCase();
@@ -818,7 +840,7 @@ function openEditItem(uuid) {
   saveBtn.onclick = () => {
     const newName  = document.getElementById('editItemName').value.trim();
     const newNotes = document.getElementById('editItemNotes').value.trim();
-    if (!newName) { toast('Name required', '#c90'); return; }
+    if (!newName) { showToast('Name required'); return; }
     a.name  = newName;
     a.notes = newNotes;
     localStorage.setItem(LS.assets, JSON.stringify(assets));
@@ -831,7 +853,7 @@ function openEditItem(uuid) {
     }
     closeEdit();
     renderDashboard();
-    toast('✅ Item updated locally');
+    showToast('✅ Item updated locally');
   };
   modal.style.display = 'block';
 }
@@ -840,12 +862,15 @@ function openEditItem(uuid) {
 function confirmAdjust() {
   const amount = parseFloat(document.getElementById('adjustAmount').value);
   if (isNaN(amount) || (amount <= 0 && adjustAction !== 'reset')) {
-    toast('Enter a valid amount', '#c90'); return;
+    showToast('Enter a valid amount'); return;
   }
   const userNotes = document.getElementById('adjustNotes').value.trim();
   const costNote  = adjustAction === 'increment' ? buildCostNote() : '';
   const notes     = costNote && userNotes ? costNote + '\n' + userNotes
                   : costNote || userNotes;
+  const seller    = adjustAction === 'increment' ? (document.getElementById('restockSeller').value.trim()) : '';
+  const lot       = adjustAction === 'increment' ? (document.getElementById('restockLot').value.trim()) : '';
+  const ts        = getTimestamp();
   const adjustments = [{ asset: adjustAsset, action: adjustAction, amount }];
   // Injection extras
   if (document.getElementById('isInjection')?.checked) {
@@ -861,7 +886,7 @@ function confirmAdjust() {
     }
   }
   for (const adj of adjustments) {
-    doAdjust(adj.asset, adj.action, adj.amount, notes);
+    doAdjust(adj.asset, adj.action, adj.amount, notes, seller, lot, ts);
   }
   // Save photo to asset locally and queue photo upload if UUID is real
   if (currentPhoto !== adjustAsset.photo) {
@@ -885,7 +910,7 @@ function confirmAdjust() {
       localStorage.setItem(LS.pending, JSON.stringify(pending));
     }
   }
-  toast('✅ Saved locally');
+  showToast('✅ Saved locally');
   renderDashboard();
   updateSyncBadge();
   show('dashboard');
@@ -894,7 +919,7 @@ function confirmAdjust() {
 // ===== CORE LOCAL ADJUST =====
 // ===== SHARED MODULE: doAdjust — writes to local pending queue, no network call =====
 // action: 'increment' | 'decrement' | 'reset'
-function doAdjust(asset, action, amount, notes) {
+function doAdjust(asset, action, amount, notes, seller, lot, ts) {
   // Update local cache immediately
   const cached = assets.find(x => x.uuid === asset.uuid);
   if (cached) {
@@ -903,6 +928,7 @@ function doAdjust(asset, action, amount, notes) {
     else                             cached.value  = amount;
     localStorage.setItem(LS.assets, JSON.stringify(assets));
   }
+  const timestamp = ts || String(Math.floor(Date.now() / 1000));
   // Queue for sync
   const entry = {
     id:        Date.now() + Math.random().toString(36).slice(2),
@@ -914,13 +940,16 @@ function doAdjust(asset, action, amount, notes) {
     action,
     amount,
     notes,
-    timestamp: String(Math.floor(Date.now() / 1000)),
+    seller:    seller || '',
+    lot:       lot    || '',
+    timestamp,
     synced:    false
   };
   pending.push(entry);
   localStorage.setItem(LS.pending, JSON.stringify(pending));
-  // Local adjHistory
-  adjHistory.unshift({ id: entry.id, name: asset.name, action, amount, notes, time: new Date().toISOString(), synced: false });
+  // Local adjHistory — store ISO for display, unix for farmOS
+  const isoTime = new Date(parseInt(timestamp) * 1000).toISOString();
+  adjHistory.unshift({ id: entry.id, name: asset.name, action, amount, notes, seller: seller||'', lot: lot||'', time: isoTime, synced: false });
   if (adjHistory.length > 100) adjHistory = adjHistory.slice(0, 100);
   localStorage.setItem(LS.history, JSON.stringify(adjHistory));
 }
@@ -928,7 +957,7 @@ function doAdjust(asset, action, amount, notes) {
 // ===== QUEUE ITEM CREATION =====
 function queueCreateItem() {
   const name = document.getElementById('newItemName').value.trim();
-  if (!name) { toast('Enter item name', '#c90'); return; }
+  if (!name) { showToast('Enter item name'); return; }
   const matTypeId   = document.getElementById('newItemCat').value;
   const unitParts   = document.getElementById('newItemUnit').value.split('|');
   const unitLabel__ = unitParts[0];
@@ -988,7 +1017,7 @@ function renderSyncScreen() {
 async function syncToFarmOS() {
   const cfg = JSON.parse(localStorage.getItem(LS.cfg) || '{}');
   if (!cfg.url || !cfg.user || !cfg.pass) {
-    toast('Configure farmOS in Settings first', '#c90');
+    showToast('Configure farmOS in Settings first');
     show('settings');
     return;
   }
@@ -1134,7 +1163,11 @@ async function syncToFarmOS() {
               name:      'Stock ' + item.action + ': ' + item.name,
               timestamp: item.timestamp,
               status:    'done',
-              ...(item.notes ? { notes: { value: item.notes, format: 'default' } } : {})
+              ...(item.notes  ? { notes: { value: item.notes, format: 'default' } } : {}),
+              // Input log specific fields — only on restock
+              ...(item.action === 'increment' && item.seller ? { source: item.seller } : {}),
+              ...(item.action === 'increment' && item.lot    ? { lot_number: item.lot } : {}),
+              ...(item.action === 'increment'                ? { purchase_date: item.timestamp } : {})
             },
             relationships: {
               asset:    { data: [{ type: 'asset--material', id: item.uuid }] },
@@ -1200,7 +1233,7 @@ function saveThresholds() {
     if (el) thresholds[a.uuid] = parseFloat(el.value) || 0;
   });
   localStorage.setItem(LS.thresholds, JSON.stringify(thresholds));
-  toast('✅ Thresholds saved');
+  showToast('✅ Thresholds saved');
   renderDashboard();
 }
 async function saveAndTest() {
@@ -1235,7 +1268,7 @@ function doLogout() {
   document.getElementById('syncStatus').textContent = 'Offline';
   renderDashboard();
   show('settings');
-  toast('Logged out');
+  showToast('Logged out');
 }
 
 // ===== HISTORY =====
@@ -1261,6 +1294,7 @@ function renderHistory() {
             <span style="color:${amtColor};font-size:16px;">${sign}${h.amount}</span>
           </div>
           ${h.notes ? `<div style="color:#888;font-size:13px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">${h.notes}</div>` : ''}
+          ${h.seller || h.lot ? `<div style="color:#666;font-size:12px;margin-top:2px;">${[h.seller ? '🏪 '+h.seller : '', h.lot ? '📦 Lot: '+h.lot : ''].filter(Boolean).join(' · ')}</div>` : ''}
           <div style="color:#666;font-size:12px;margin-top:3px;">${t} <span style="color:${syncColor};margin-left:4px;">${syncMark}</span></div>
         </div>
       </div>
@@ -1284,25 +1318,39 @@ function openEditLog(id) {
   const modal   = document.getElementById('editModal');
   const fields  = document.getElementById('editFields');
   const saveBtn = document.getElementById('modalSaveBtn');
+  // Convert stored ISO time to datetime-local value
+  const rawTime  = entry.time ? new Date(entry.time) : new Date();
+  const localVal = new Date(rawTime.getTime() - rawTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   document.getElementById('editTitle').textContent = '✏️ Edit Log';
   fields.innerHTML = `
     <div style="color:#aaa;font-size:13px;margin-bottom:8px;">${entry.name} ${entry.action === 'increment' ? '+' : entry.action === 'decrement' ? '−' : '='}${entry.amount}</div>
-    <label style="color:#aaa;font-size:14px;">Notes</label>
+    <label style="color:#aaa;font-size:14px;">Date &amp; Time</label>
+    <input type="datetime-local" id="editLogTime" value="${localVal}" style="width:100%;padding:10px;margin-top:4px;font-size:15px;background:#333;color:#eee;border:1px solid #555;border-radius:6px;">
+    <label style="color:#aaa;font-size:14px;margin-top:10px;display:block;">Notes</label>
     <textarea id="editLogNotes" rows="3" style="width:100%;padding:10px;margin-top:4px;font-size:15px;background:#333;color:#eee;border:1px solid #555;border-radius:6px;">${entry.notes || ''}</textarea>
-    ${!entry.synced ? '' : '<p style="color:#c90;font-size:13px;margin-top:8px;">⚠️ Already synced — note edit is local only.</p>'}
+    ${entry.synced ? '<p style="color:#c90;font-size:13px;margin-top:8px;">⚠️ Already synced — changes are local only.</p>' : ''}
   `;
   saveBtn.textContent      = '💾 Save';
   saveBtn.style.background = '#3a7';
   saveBtn.onclick = () => {
-    entry.notes = document.getElementById('editLogNotes').value.trim();
-    // If unsynced, update the pending queue entry too
+    const newTime  = document.getElementById('editLogTime').value;
+    const newNotes = document.getElementById('editLogNotes').value.trim();
+    if (newTime) entry.time = new Date(newTime).toISOString();
+    entry.notes  = newNotes;
+    entry.synced = false; // mark for re-sync
+    // Update pending queue entry if unsynced
     const pEntry = pending.find(p => p.id === entry.id);
-    if (pEntry) pEntry.notes = entry.notes;
+    if (pEntry) {
+      pEntry.notes     = newNotes;
+      pEntry.timestamp = newTime ? String(Math.floor(new Date(newTime).getTime() / 1000)) : pEntry.timestamp;
+      pEntry.synced    = false;
+    }
     localStorage.setItem(LS.history, JSON.stringify(adjHistory));
     localStorage.setItem(LS.pending, JSON.stringify(pending));
     closeEdit();
     renderHistory();
-    toast('✅ Log updated');
+    updateSyncBadge();
+    showToast('✅ Log updated');
   };
   modal.style.display = 'block';
 }

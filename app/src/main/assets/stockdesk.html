@@ -126,7 +126,21 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
 .action-btn { flex:1; margin:0; padding:14px 6px; font-size:15px; background:#333; }
 .action-btn.active { background:#3a7; }
 #adjustAmount { text-align:center; font-size:28px; font-weight:bold; }
-/* Pending badge on nav */
+/* Stock card drawer */
+.stock-card { flex-wrap:wrap; cursor:pointer; }
+.stock-card .card-top { display:flex; align-items:center; gap:8px; width:100%; }
+.stock-card .card-drawer { display:none; width:100%; margin-top:10px; border-top:1px solid #333; padding-top:10px; }
+.stock-card .card-arrow { color:#555; font-size:13px; margin-left:4px; }
+/* Photo viewer */
+#photoViewer {
+  display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.95); z-index:9999;
+  align-items:center; justify-content:center; flex-direction:column;
+}
+#photoViewer.show { display:flex; }
+#photoViewer img { max-width:100%; max-height:90vh; border-radius:6px; }
+#photoViewer button { position:absolute; top:16px; right:16px; background:#333; padding:10px 16px; margin:0; font-size:18px; }
+
 .pending-badge {
   display:inline-block; background:#c90; color:#111;
   border-radius:10px; font-size:11px; font-weight:bold;
@@ -162,7 +176,7 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   <div class="box">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
       <h3 id="adjustTitle" style="margin:0;color:#3a7;font-size:20px;"></h3>
-      <button class="secondary" onclick="show('dashboard')" style="padding:8px 14px;font-size:14px;margin:0;">✕</button>
+      <button class="secondary" onclick="window.history.back()" style="padding:8px 14px;font-size:14px;margin:0;">✕</button>
     </div>
     <div id="currentStock" style="font-size:26px;color:#3a7;text-align:center;padding:8px 0;font-weight:bold;"></div>
     <div id="adjustAssetNotes" style="color:#888;font-size:13px;display:none;margin-top:4px;"></div>
@@ -313,7 +327,7 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
 const LS = {
   cfg:        'farmdesk_stock_cfg',
   assets:     'farmdesk_stock_assets',
-  history:    'farmdesk_stock_history',
+  adjHistory:    'farmdesk_stock_history',
   lastSync:   'farmdesk_stock_lastsync',
   thresholds: 'farmdesk_stock_thresholds',
   pending:    'farmdesk_stock_pending',  // local-first queue
@@ -347,7 +361,7 @@ const INJECTABLE_KEYWORDS = ['super b', 'cdt', 'ivermectin', 'bactrim', 'penicil
 
 // ===== STATE =====
 let assets     = JSON.parse(localStorage.getItem(LS.assets)     || '[]');
-let history    = JSON.parse(localStorage.getItem(LS.history)    || '[]');
+let adjHistory    = JSON.parse(localStorage.getItem(LS.history)    || '[]');
 let thresholds = JSON.parse(localStorage.getItem(LS.thresholds) || '{}');
 let pending    = JSON.parse(localStorage.getItem(LS.pending)    || '[]');
 let photos     = JSON.parse(localStorage.getItem(LS.photos)     || '{}');
@@ -361,12 +375,16 @@ let syringeMap = {};
 let needleMap  = {};
 
 // ===== SCREEN NAV =====
+// Push initial state so Android back button has somewhere to go
+window.history.pushState({ page: 'dashboard' }, '');
+
 function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + id).classList.add('active');
   document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active'));
   const navBtn = document.getElementById('nav-' + id);
   if (navBtn) navBtn.classList.add('active');
+  if (id !== 'dashboard') window.history.pushState({ page: id }, '');
   if (id === 'history')  renderHistory();
   if (id === 'settings') renderSettings();
   if (id === 'sync')     renderSyncScreen();
@@ -558,22 +576,42 @@ function renderDashboard() {
     return;
   }
   list.innerHTML = items.map(a => {
-    const thresh = thresholds[a.uuid] || 0;
-    const cls    = a.value <= 0 ? 'empty' : (thresh > 0 && a.value <= thresh ? 'low' : '');
-    const ul     = a.units;
-    const thumb  = a.photo ? `<img src="${a.photo}" style="width:44px;height:44px;object-fit:cover;border-radius:4px;flex-shrink:0;">` : '';
-    const notesSnip = a.notes ? `<div style="color:#888;font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">${a.notes}</div>` : '';
-    return `<div class="stock-card ${cls}">
-      ${thumb}
-      <div class="item-info" onclick="openAdjust('${a.uuid}')">
-        <div class="item-name">${a.name}</div>
-        <div class="item-qty">${a.value}${ul ? ' ' + ul : ''}</div>
-        ${notesSnip}
+    const thresh   = thresholds[a.uuid] || 0;
+    const cls      = a.value <= 0 ? 'empty' : (thresh > 0 && a.value <= thresh ? 'low' : '');
+    const ul       = a.units;
+    // Subtitle = first line of notes
+    const subtitle = a.notes ? a.notes.split('\n')[0] : '';
+    const thumb    = a.photo ? `<img src="${a.photo}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;flex-shrink:0;cursor:zoom-in;" onclick="event.stopPropagation();openPhotoViewer('${a.uuid}')">` : '';
+    return `<div class="stock-card ${cls}" onclick="toggleCardDrawer(this)">
+      <div class="card-top">
+        ${thumb}
+        <div class="item-info" style="flex:1;">
+          <div class="item-name">${a.name} <span class="card-arrow">▼</span></div>
+          <div class="item-qty">${a.value}${ul ? ' ' + ul : ''}</div>
+          ${subtitle ? `<div style="color:#888;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;">${subtitle}</div>` : ''}
+        </div>
+        <button class="adj-btn secondary" onclick="event.stopPropagation();quickAdj('${a.uuid}',-1)">−</button>
+        <button class="adj-btn"           onclick="event.stopPropagation();quickAdj('${a.uuid}', 1)">+</button>
       </div>
-      <button class="adj-btn secondary" onclick="quickAdj('${a.uuid}',-1)">−</button>
-      <button class="adj-btn"           onclick="quickAdj('${a.uuid}', 1)">+</button>
+      <div class="card-drawer" id="drawer-${a.uuid}">
+        ${a.photo ? `<img src="${a.photo}" style="width:100%;border-radius:6px;max-height:180px;object-fit:cover;cursor:zoom-in;margin-bottom:8px;" onclick="event.stopPropagation();openPhotoViewer('${a.uuid}')">` : ''}
+        ${a.notes ? `<div style="color:#aaa;font-size:13px;margin-bottom:8px;">${a.notes.replace(/\n/g,'<br>')}</div>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button onclick="event.stopPropagation();openAdjust('${a.uuid}')" style="flex:1;margin:0;padding:12px;font-size:14px;">📝 Adjust</button>
+          <button onclick="event.stopPropagation();openEditItem('${a.uuid}')" class="secondary" style="margin:0;padding:12px;font-size:14px;">✏️ Edit Item</button>
+        </div>
+      </div>
     </div>`;
   }).join('');
+}
+
+function toggleCardDrawer(card) {
+  const drawer = card.querySelector('.card-drawer');
+  const arrow  = card.querySelector('.card-arrow');
+  if (!drawer) return;
+  const isOpen = drawer.style.display === 'block';
+  drawer.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.textContent = isOpen ? '▼' : '▲';
 }
 
 // ===== QUICK ADJUST (dashboard +/-1) — local only =====
@@ -749,6 +787,55 @@ function clearAssetPhoto() {
   if (input) input.value = '';
 }
 
+// ===== PHOTO VIEWER =====
+function openPhotoViewer(uuid) {
+  const a = assets.find(x => x.uuid === uuid);
+  if (!a || !a.photo) return;
+  document.getElementById('photoViewerImg').src = a.photo;
+  document.getElementById('photoViewer').classList.add('show');
+}
+function closePhotoViewer() {
+  document.getElementById('photoViewer').classList.remove('show');
+  document.getElementById('photoViewerImg').src = '';
+}
+
+// ===== EDIT ITEM =====
+function openEditItem(uuid) {
+  const a = assets.find(x => x.uuid === uuid);
+  if (!a) return;
+  const modal   = document.getElementById('editModal');
+  const fields  = document.getElementById('editFields');
+  const saveBtn = document.getElementById('modalSaveBtn');
+  document.getElementById('editTitle').textContent = '✏️ Edit Item';
+  fields.innerHTML = `
+    <label style="color:#aaa;font-size:14px;">Name</label>
+    <input type="text" id="editItemName" value="${a.name}" style="width:100%;padding:10px;margin-top:4px;font-size:16px;background:#333;color:#eee;border:1px solid #555;border-radius:6px;">
+    <label style="color:#aaa;font-size:14px;margin-top:10px;display:block;">Notes</label>
+    <textarea id="editItemNotes" rows="3" style="width:100%;padding:10px;margin-top:4px;font-size:15px;background:#333;color:#eee;border:1px solid #555;border-radius:6px;">${a.notes || ''}</textarea>
+  `;
+  saveBtn.textContent  = '💾 Save';
+  saveBtn.style.background = '#3a7';
+  saveBtn.onclick = () => {
+    const newName  = document.getElementById('editItemName').value.trim();
+    const newNotes = document.getElementById('editItemNotes').value.trim();
+    if (!newName) { toast('Name required', '#c90'); return; }
+    a.name  = newName;
+    a.notes = newNotes;
+    localStorage.setItem(LS.assets, JSON.stringify(assets));
+    // Queue PATCH if real UUID
+    if (!a.uuid.startsWith('local_')) {
+      pending = pending.filter(p => !(p.type === 'patch_asset' && p.uuid === a.uuid));
+      pending.push({ id: 'patch_' + a.uuid, type: 'patch_asset', uuid: a.uuid, name: newName, notes: newNotes, synced: false });
+      localStorage.setItem(LS.pending, JSON.stringify(pending));
+      updateSyncBadge();
+    }
+    closeEdit();
+    renderDashboard();
+    toast('✅ Item updated locally');
+  };
+  modal.style.display = 'block';
+}
+
 // ===== CONFIRM ADJUST — saves locally, no network =====
 function confirmAdjust() {
   const amount = parseFloat(document.getElementById('adjustAmount').value);
@@ -832,10 +919,10 @@ function doAdjust(asset, action, amount, notes) {
   };
   pending.push(entry);
   localStorage.setItem(LS.pending, JSON.stringify(pending));
-  // Local history
-  history.unshift({ id: entry.id, name: asset.name, action, amount, notes, time: new Date().toISOString(), synced: false });
-  if (history.length > 100) history = history.slice(0, 100);
-  localStorage.setItem(LS.history, JSON.stringify(history));
+  // Local adjHistory
+  adjHistory.unshift({ id: entry.id, name: asset.name, action, amount, notes, time: new Date().toISOString(), synced: false });
+  if (adjHistory.length > 100) adjHistory = adjHistory.slice(0, 100);
+  localStorage.setItem(LS.history, JSON.stringify(adjHistory));
 }
 
 // ===== QUEUE ITEM CREATION =====
@@ -990,7 +1077,27 @@ async function syncToFarmOS() {
         } catch(pe) {
           throw new Error('Photo upload: ' + pe.message);
         }
-      } else if (item.type === 'adjust') {
+      } else if (item.type === 'patch_asset') {
+        const patchBody = {
+          data: {
+            type: 'asset--material',
+            id:   item.uuid,
+            attributes: {
+              name:  item.name,
+              notes: { value: item.notes || '', format: 'default' }
+            }
+          }
+        };
+        const pRes = await fetch(apiUrl(`/api/asset/material/${item.uuid}`), {
+          method: 'PATCH', headers: h, body: JSON.stringify(patchBody)
+        });
+        if (!pRes.ok) {
+          const e = await pRes.json().catch(() => ({}));
+          throw new Error(e.errors?.[0]?.detail || pRes.status);
+        }
+        item.synced = true;
+        ok++;
+        logEl.textContent += '✅ Updated: ' + item.name + '\n';
         // POST quantity then log — same pattern as original doAdjust
         const num = Number.isInteger(item.amount) ? String(item.amount) : String(Math.round(item.amount * 100));
         const den = Number.isInteger(item.amount) ? '1' : '100';
@@ -1042,8 +1149,8 @@ async function syncToFarmOS() {
           const e = await lRes.json().catch(() => ({}));
           throw new Error('Log: ' + (e.errors?.[0]?.detail || lRes.status));
         }
-        // Mark synced in history
-        const hEntry = history.find(h => h.id === item.id);
+        // Mark synced in adjHistory
+        const hEntry = adjHistory.find(h => h.id === item.id);
         if (hEntry) { hEntry.synced = true; }
         item.synced = true;
         ok++;
@@ -1056,7 +1163,7 @@ async function syncToFarmOS() {
     }
   }
   localStorage.setItem(LS.pending, JSON.stringify(pending));
-  localStorage.setItem(LS.history, JSON.stringify(history));
+  localStorage.setItem(LS.history, JSON.stringify(adjHistory));
   const now = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
   localStorage.setItem(LS.lastSync, now);
   document.getElementById('syncStatus').textContent = 'Synced ' + now;
@@ -1134,27 +1241,70 @@ function doLogout() {
 // ===== HISTORY =====
 function renderHistory() {
   const list = document.getElementById('historyList');
-  if (!history.length) {
+  if (!adjHistory.length) {
     list.innerHTML = '<div class="box" style="color:#888;text-align:center;padding:20px;">No adjustments yet.</div>';
     return;
   }
-  list.innerHTML = history.slice(0, 50).map(h => {
-    const icon     = h.action === 'increment' ? '📥' : (h.action === 'decrement' ? '📤' : '🔢');
-    const sign     = h.action === 'increment' ? '+' : (h.action === 'decrement' ? '−' : '=');
-    const syncMark = h.synced ? ' ✓' : ' ⏳';
-    const t        = new Date(h.time).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    return `<div class="box" style="display:flex;align-items:flex-start;gap:10px;">
-      <input type="checkbox" class="history-select" data-id="${h.id}" style="width:auto;margin:4px 0 0;flex-shrink:0;" onclick="event.stopPropagation()">
-      <div style="flex:1;">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;">
-          <strong style="font-size:15px;">${icon} ${h.name}</strong>
-          <span style="color:#3a7;font-size:16px;">${sign}${h.amount}</span>
+  list.innerHTML = adjHistory.slice(0, 50).map(h => {
+    const icon      = h.action === 'increment' ? '📥' : (h.action === 'decrement' ? '📤' : '🔢');
+    const sign      = h.action === 'increment' ? '+' : (h.action === 'decrement' ? '−' : '=');
+    const amtColor  = h.action === 'decrement' ? '#c66' : '#3a7';
+    const syncMark  = h.synced ? '✓' : '⏳';
+    const syncColor = h.synced ? '#3a7' : '#c90';
+    const t         = new Date(h.time).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div class="box" style="cursor:pointer;" onclick="toggleHistoryDrawer(this)">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <input type="checkbox" class="history-select" data-id="${h.id}" style="width:auto;margin:4px 0 0;flex-shrink:0;" onclick="event.stopPropagation()">
+        <div style="flex:1;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;">
+            <strong style="font-size:15px;">${icon} ${h.name}</strong>
+            <span style="color:${amtColor};font-size:16px;">${sign}${h.amount}</span>
+          </div>
+          ${h.notes ? `<div style="color:#888;font-size:13px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">${h.notes}</div>` : ''}
+          <div style="color:#666;font-size:12px;margin-top:3px;">${t} <span style="color:${syncColor};margin-left:4px;">${syncMark}</span></div>
         </div>
-        ${h.notes ? `<div style="color:#888;font-size:13px;margin-top:3px;">${h.notes}</div>` : ''}
-        <div style="color:#666;font-size:12px;margin-top:3px;">${t}<span style="color:${h.synced ? '#3a7' : '#c90'};margin-left:6px;">${syncMark}</span></div>
+      </div>
+      <div class="history-drawer" style="display:none;margin-top:10px;border-top:1px solid #333;padding-top:10px;">
+        ${h.notes ? `<div style="color:#aaa;font-size:13px;margin-bottom:8px;">${h.notes}</div>` : ''}
+        <button onclick="event.stopPropagation();openEditLog('${h.id}')" style="margin:0;padding:10px 16px;font-size:14px;">✏️ Edit Log</button>
       </div>
     </div>`;
   }).join('');
+}
+
+function toggleHistoryDrawer(card) {
+  const drawer = card.querySelector('.history-drawer');
+  if (!drawer) return;
+  drawer.style.display = drawer.style.display === 'block' ? 'none' : 'block';
+}
+
+function openEditLog(id) {
+  const entry   = adjHistory.find(h => h.id === id);
+  if (!entry) return;
+  const modal   = document.getElementById('editModal');
+  const fields  = document.getElementById('editFields');
+  const saveBtn = document.getElementById('modalSaveBtn');
+  document.getElementById('editTitle').textContent = '✏️ Edit Log';
+  fields.innerHTML = `
+    <div style="color:#aaa;font-size:13px;margin-bottom:8px;">${entry.name} ${entry.action === 'increment' ? '+' : entry.action === 'decrement' ? '−' : '='}${entry.amount}</div>
+    <label style="color:#aaa;font-size:14px;">Notes</label>
+    <textarea id="editLogNotes" rows="3" style="width:100%;padding:10px;margin-top:4px;font-size:15px;background:#333;color:#eee;border:1px solid #555;border-radius:6px;">${entry.notes || ''}</textarea>
+    ${!entry.synced ? '' : '<p style="color:#c90;font-size:13px;margin-top:8px;">⚠️ Already synced — note edit is local only.</p>'}
+  `;
+  saveBtn.textContent      = '💾 Save';
+  saveBtn.style.background = '#3a7';
+  saveBtn.onclick = () => {
+    entry.notes = document.getElementById('editLogNotes').value.trim();
+    // If unsynced, update the pending queue entry too
+    const pEntry = pending.find(p => p.id === entry.id);
+    if (pEntry) pEntry.notes = entry.notes;
+    localStorage.setItem(LS.history, JSON.stringify(adjHistory));
+    localStorage.setItem(LS.pending, JSON.stringify(pending));
+    closeEdit();
+    renderHistory();
+    toast('✅ Log updated');
+  };
+  modal.style.display = 'block';
 }
 
 // ===== LOGO =====
@@ -1164,7 +1314,19 @@ function renderHistory() {
   if (logo && el) { el.src = logo; el.style.display = 'block'; }
 })();
 
-// ===== INIT =====
+// ===== BACK BUTTON (Android + browser) =====
+window.addEventListener('popstate', function(e) {
+  const page = e.state?.page || 'dashboard';
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById('screen-' + page);
+  if (target) target.classList.add('active');
+  document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active'));
+  const navBtn = document.getElementById('nav-' + page);
+  if (navBtn) navBtn.classList.add('active');
+  if (page === 'history')  renderHistory();
+  if (page === 'settings') renderSettings();
+  if (page === 'sync')     renderSyncScreen();
+});
 const _lastSync = localStorage.getItem(LS.lastSync);
 document.getElementById('syncStatus').textContent = _lastSync ? 'Synced ' + _lastSync : 'Offline';
 renderDashboard();
@@ -1176,7 +1338,7 @@ function closeEdit() {
 }
 
 // ===== HISTORY DELETE =====
-// ===== SHARED MODULE: history delete — single, multiselect, clear all =====
+// ===== SHARED MODULE: adjHistory delete — single, multiselect, clear all =====
 function toggleSelectAll(checked) {
   document.querySelectorAll('.history-select').forEach(cb => cb.checked = checked);
 }
@@ -1189,15 +1351,15 @@ function deleteSelected() {
   const saveBtn = document.getElementById('modalSaveBtn');
   document.getElementById('editTitle').textContent = 'Delete Selected?';
   fields.innerHTML = `
-    <p style="color:#ccc;">${selected.length} item${selected.length > 1 ? 's' : ''} will be removed from local history.</p>
+    <p style="color:#ccc;">${selected.length} item${selected.length > 1 ? 's' : ''} will be removed from local adjHistory.</p>
     <p style="color:#c66;">This cannot be undone.</p>
   `;
   saveBtn.textContent = '🗑️ Confirm Delete';
   saveBtn.style.background = '#8b0000';
   saveBtn.onclick = () => {
-    history = history.filter(h => !selected.includes(h.id));
+    adjHistory = adjHistory.filter(h => !selected.includes(h.id));
     pending = pending.filter(p => !selected.includes(p.id));
-    localStorage.setItem(LS.history, JSON.stringify(history));
+    localStorage.setItem(LS.history, JSON.stringify(adjHistory));
     localStorage.setItem(LS.pending, JSON.stringify(pending));
     const sa = document.getElementById('selectAllHistory');
     if (sa) sa.checked = false;
@@ -1215,15 +1377,15 @@ function clearHistory() {
   const unsyncedCount = pending.filter(p => !p.synced).length;
   document.getElementById('editTitle').textContent = 'Clear All History?';
   fields.innerHTML = `
-    <p style="color:#c66;">All ${history.length} history entries will be deleted${unsyncedCount > 0 ? `, including ${unsyncedCount} unsynced item${unsyncedCount > 1 ? 's' : ''}` : ''}.</p>
+    <p style="color:#c66;">All ${adjHistory.length} adjHistory entries will be deleted${unsyncedCount > 0 ? `, including ${unsyncedCount} unsynced item${unsyncedCount > 1 ? 's' : ''}` : ''}.</p>
     <p style="color:#c66;">This cannot be undone.</p>
   `;
   saveBtn.textContent = '🗑️ Confirm Clear All';
   saveBtn.style.background = '#8b0000';
   saveBtn.onclick = () => {
-    history = [];
+    adjHistory = [];
     pending = [];
-    localStorage.setItem(LS.history, JSON.stringify(history));
+    localStorage.setItem(LS.history, JSON.stringify(adjHistory));
     localStorage.setItem(LS.pending, JSON.stringify(pending));
     closeEdit();
     renderHistory();
@@ -1234,6 +1396,12 @@ function clearHistory() {
 }
 
 </script>
+<!-- ===== PHOTO VIEWER ===== -->
+<div id="photoViewer">
+  <button onclick="closePhotoViewer()">✕</button>
+  <img id="photoViewerImg" src="" alt="">
+</div>
+
 <!-- ===== CONFIRM MODAL ===== -->
 <div id="editModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:999;overflow-y:auto;">
   <div style="background:#2a2a2a;margin:20px auto;max-width:480px;border-radius:10px;padding:16px;">

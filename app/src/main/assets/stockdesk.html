@@ -191,7 +191,7 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
   <div class="box">
     <div style="display:flex;align-items:center;gap:8px;">
       <button onclick="stepAmount(-1)" style="padding:14px 22px;margin:0;font-size:26px;background:#555;">−</button>
-      <input type="number" id="adjustAmount" value="1" min="0" step="any" style="flex:1;" oninput="calcCost()" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('adjustNotes').focus();}">
+      <input type="number" id="adjustAmount" value="1" min="0" step="any" style="flex:1;" oninput="calcCost()" onfocus="this.select()" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('adjustNotes').focus();}">
       <button onclick="stepAmount(1)"  style="padding:14px 22px;margin:0;font-size:26px;">+</button>
     </div>
     <div id="quickAmounts" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;"></div>
@@ -206,7 +206,7 @@ input:focus, select:focus { outline:none; border-color:#3a7; }
       <button id="btnLot"  class="action-btn secondary" onclick="setPriceType('lot')">Lot</button>
     </div>
     <label id="priceUnitLabel">Unit Price ($)</label>
-    <input type="number" id="priceUnit" min="0" step="0.01" placeholder="0.00" oninput="calcCost()" enterkeyhint="done" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmAdjust();}">
+    <input type="number" id="priceUnit" min="0" step="0.01" placeholder="0.00" oninput="calcCost()" onfocus="this.select()" enterkeyhint="done" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmAdjust();}">
     <div id="costTotal" style="color:#3a7;font-size:18px;font-weight:bold;margin-top:8px;text-align:center;"></div>
   </div>
   <!-- Photo box — attach photo to asset -->
@@ -672,9 +672,9 @@ function updateStockDisplay() {
 function renderQuickAmounts() {
   const n = adjustAsset.name.toLowerCase();
   let qtys;
-  if (n.includes('hay') || n.includes('bale'))  qtys = [1, 5, 10, 20];
-  else if (adjustAsset.measure === 'volume')     qtys = [1, 5, 10, 50];
-  else                                           qtys = [1, 5, 10, 25];
+  if (n.includes('hay') || n.includes('bale'))  qtys = [1, 5, 10, 20, 25, 50];
+  else if (adjustAsset.measure === 'volume')     qtys = [1, 5, 10, 25, 50, 100];
+  else                                           qtys = [1, 5, 10, 25, 50];
   document.getElementById('quickAmounts').innerHTML =
     qtys.map(q => `<button class="secondary sm" onclick="setAmount(${q})">${q}</button>`).join('');
 }
